@@ -1,0 +1,62 @@
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_DATABASE: rental
+      MYSQL_USER: user
+      MYSQL_PASSWORD: pass
+      MYSQL_ROOT_PASSWORD: w2gA/596HwLt8fpLwPjG18hcWLnFU7KSUNYocv4ThvY=
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -u root -p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ../rental-management-backend
+      dockerfile: ../rental-management-backend/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      # database configuration used by sequelize config
+      DB_NAME: rental
+      DB_USER: user
+      DB_PASSWORD: pass
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_SYNC_ALTER: "true"
+      JWT_SECRET: vaECgdWG56Dl7uBuK3F+rwT/XzKKwVZE0t4/Gtig/3Q=
+      CORS_ORIGIN: "http://localhost:3000"
+      # other env vars, e.g. JWT_SECRET, CORS_ORIGIN, etc.
+    depends_on:
+      db:
+        condition: service_healthy
+    # volumes:
+    #  - ./rental-management-backend:/app       # optional for dev bind mount
+
+  frontend:
+    build:
+      context: ../rental-management-frontend
+      dockerfile: ../rental-management-frontend/Dockerfile
+      args:
+        # this value will be baked into the static files at build time
+        VITE_API_URL: http://localhost:4000
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    # runtime env still available if you want it, but the build arg is the key
+    environment:
+      VITE_API_URL: http://localhost:4000
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
