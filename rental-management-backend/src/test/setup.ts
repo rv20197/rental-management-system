@@ -8,6 +8,8 @@ process.env.DB_HOST = process.env.DB_HOST || 'localhost';
 import { sequelize } from '../models';
 import { ensureDatabaseExists } from '../utils/dbSetup';
 
+jest.setTimeout(30000);
+
 beforeAll(async () => {
   if (process.env.SKIP_DB_SETUP === 'true') {
     return;

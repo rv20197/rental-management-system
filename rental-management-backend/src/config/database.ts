@@ -9,18 +9,22 @@ dotenv.config();
  * Initialize Sequelize with connection details.
  * Connects to the configured database (Postgres by default) using environment variables.
  */
-// Determine dialect from environment variable; default to postgres for new setups
-const dialect = (process.env.DB_DIALECT || 'postgres') as 'postgres' | 'mysql';
+// Standardized on Postgres
+const dialect = 'postgres';
 
 const sequelizeOptions: any = {
-  host: process.env.DB_HOST,
   dialect,
-  port: parseInt(process.env.DB_PORT || (dialect === 'mysql' ? '3306' : '5432'), 10), // Connection port
-  logging: (msg: string) => logger.debug(msg), // Use custom logger for SQL queries
+  logging: (msg: string) => logger.debug(msg),
 };
 
-// enable SSL when requested (e.g. Neon, Heroku)
-if (dialect === 'postgres' && process.env.DB_SSL === 'true') {
+// Set port/host only if not using DATABASE_URL
+if (!process.env.DATABASE_URL) {
+  sequelizeOptions.host = process.env.DB_HOST;
+  sequelizeOptions.port = parseInt(process.env.DB_PORT || '5432', 10);
+}
+
+// enable SSL when requested (e.g. Neon, Heroku) or in production
+if (dialect === 'postgres' && (process.env.DB_SSL === 'true' || process.env.NODE_ENV === 'production')) {
   sequelizeOptions.dialectOptions = {
     ssl: {
       require: true,
@@ -30,11 +34,13 @@ if (dialect === 'postgres' && process.env.DB_SSL === 'true') {
   };
 }
 
-const sequelize = new Sequelize(
-  process.env.DB_NAME as string,
-  process.env.DB_USER as string,
-  process.env.DB_PASSWORD as string,
-  sequelizeOptions
-);
+const sequelize = process.env.DATABASE_URL
+  ? new Sequelize(process.env.DATABASE_URL, sequelizeOptions)
+  : new Sequelize(
+    process.env.DB_NAME as string,
+    process.env.DB_USER as string,
+    process.env.DB_PASSWORD as string,
+    sequelizeOptions
+  );
 
 export default sequelize;
