@@ -3,6 +3,8 @@ import { Billing, Rental, Customer } from '../models';
 import { Item, InventoryUnit } from '../models/Item';
 import { generateRentalPDF } from '../utils/pdfUtils';
 
+import { calculateMonthsRented } from '../utils/billingUtils';
+
 /**
  * Grabs all system billing instances alongside deeper rental structure
  */
@@ -74,12 +76,10 @@ export const returnAndBill = async (req: Request, res: Response) => {
     const returnedUnitIds = rental.inventoryUnitIds.slice(0, qtyToReturn);
     const remainingUnitIds = rental.inventoryUnitIds.slice(qtyToReturn);
 
-    // Calculate dynamic cost: how many months did they have it?
+    // Calculate dynamic cost based on return day rules
     const startDate = new Date(rental.startDate);
     const now = new Date();
-    const msDiff = now.getTime() - startDate.getTime();
-    let monthsRented = Math.ceil(msDiff / (1000 * 3600 * 24 * 30));
-    if (monthsRented < 1) monthsRented = 1;
+    const monthsRented = calculateMonthsRented(startDate, now);
 
     const monthlyRate = rental.Item ? parseFloat(rental.Item.monthlyRate) : 0;
     const billAmount = qtyToReturn * monthlyRate * monthsRented;

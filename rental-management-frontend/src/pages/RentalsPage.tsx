@@ -30,12 +30,24 @@ import { Label } from "../components/ui/label";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { Plus, Search, ChevronLeft, ChevronRight, ReceiptText, Download, CalendarPlus } from "lucide-react";
 import api from "../api";
+import { calculateMonthsRented } from "../lib/billingUtils";
 
-const downloadFile = async (endpoint: string, filename: string) => {
+const downloadFile = async (endpoint: string, fallbackFilename: string) => {
   try {
     const response = await api.get(endpoint, {
       responseType: 'blob',
     });
+
+    let filename = fallbackFilename;
+    const disposition = response.headers['content-disposition'];
+    if (disposition && disposition.indexOf('attachment') !== -1) {
+      const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+      const matches = filenameRegex.exec(disposition);
+      if (matches != null && matches[1]) { 
+        filename = matches[1].replace(/['"]/g, '');
+      }
+    }
+
     const url = window.URL.createObjectURL(new Blob([response.data]));
     const link = document.createElement('a');
     link.href = url;
@@ -45,7 +57,7 @@ const downloadFile = async (endpoint: string, filename: string) => {
     link.remove();
     window.URL.revokeObjectURL(url);
   } catch (error) {
-    toast.error(`Failed to download ${filename.split('-')[0]}`);
+    toast.error(`Failed to download file`);
   }
 };
 
@@ -63,6 +75,7 @@ const RentalRow = React.memo(function RentalRow({ rental, onReturn, onExtend }: 
           ? `${rental.Customer.firstName ?? ""} ${rental.Customer.lastName ?? ""}`.trim() || rental.Customer.email
           : rental.customerId}
       </TableCell>
+      <TableCell className="whitespace-nowrap">{new Date(rental.startDate).toLocaleDateString()}</TableCell>
       <TableCell>{rental.quantity}</TableCell>
       <TableCell>{rental.depositAmount != null ? `₹${Number(rental.depositAmount).toFixed(2)}` : "-"}</TableCell>
       <TableCell>
@@ -170,6 +183,17 @@ export default function RentalsPage() {
     if (!selectedRental) return 0;
     return selectedRental.quantity - (selectedRental.returnedQuantity || 0);
   }, [selectedRental]);
+
+  const previewMonths = useMemo(() => {
+    if (!selectedRental) return 0;
+    return calculateMonthsRented(new Date(selectedRental.startDate), new Date());
+  }, [selectedRental]);
+
+  const previewAmount = useMemo(() => {
+    if (!selectedRental || returnQty <= 0) return 0;
+    const monthlyRate = selectedRental.Item?.monthlyRate ? Number(selectedRental.Item.monthlyRate) : 0;
+    return returnQty * monthlyRate * previewMonths;
+  }, [selectedRental, returnQty, previewMonths]);
 
   const handleReturn = async () => {
     if (!selectedRentalId || returnQty <= 0) return;
@@ -285,6 +309,7 @@ export default function RentalsPage() {
                     <TableHead className="w-[100px]">ID</TableHead>
                     <TableHead>Item</TableHead>
                     <TableHead>Customer</TableHead>
+                    <TableHead>Start Date</TableHead>
                     <TableHead>Qty</TableHead>
                     <TableHead>Deposit</TableHead>
                     <TableHead>Status</TableHead>
@@ -367,6 +392,27 @@ export default function RentalsPage() {
                 onChange={(e) => setReturnQty(Number(e.target.value))}
               />
             </div>
+
+            {selectedRental && returnQty > 0 && (
+              <div className="rounded-lg bg-muted p-3 space-y-2 border">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">Estimated Billing:</span>
+                  <span className="font-bold text-lg">₹{previewAmount.toFixed(2)}</span>
+                </div>
+                <div className="text-[10px] text-muted-foreground leading-relaxed">
+                  <p>Billing rules for return month:</p>
+                  <ul className="list-disc list-inside mt-1 grid grid-cols-1 gap-0.5">
+                    <li>Before 5th: 0 charge</li>
+                    <li>5th to 15th: 0.5 months charge</li>
+                    <li>After 15th: 1.0 month charge</li>
+                  </ul>
+                  <p className="mt-1 border-t pt-1">
+                    Calculated for: <span className="font-medium text-foreground">{previewMonths} months</span> total.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <DialogFooter>
               <Button variant="outline" onClick={() => setSelectedRentalId(null)}>Cancel</Button>
               <Button onClick={handleReturn} disabled={isReturning}>

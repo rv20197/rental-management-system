@@ -1,73 +1,91 @@
-# React + TypeScript + Vite
+# Goods Rental Management Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A React application for managing a goods/equipment rental business. Built with React 19, Vite, TypeScript, and Tailwind CSS.
 
-Currently, two official plugins are available:
+## Table of Contents
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+1. [Features](#features)
+2. [Tech Stack](#tech-stack)
+3. [Prerequisites](#prerequisites)
+4. [Setup & Installation](#setup--installation)
+5. [Environment Variables](#environment-variables)
+6. [Scripts](#scripts)
+7. [Billing Logic Mirror](#billing-logic-mirror)
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Features
 
-## Expanding the ESLint configuration
+- **Dashboard**: High-level overview of rentals, inventory, and revenue.
+- **Inventory Management**: Add, update, and track status of rental goods.
+- **Customer Tracking**: Maintain customer profiles and rental history.
+- **Rental Processing**: Create new rentals and process returns.
+- **Billing & Payments**: View billing status, mark payments, and download invoices.
+- **Interactive Returns**: Real-time estimation of billing amounts during return processing.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+---
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Tech Stack
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- **Framework**: React 19
+- **Build Tool**: Vite
+- **Language**: TypeScript
+- **State Management**: Redux Toolkit (RTK Query)
+- **Routing**: React Router
+- **Styling**: Tailwind CSS & Shadcn/UI
+- **Forms**: React Hook Form & Zod
+- **API Client**: Axios
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+---
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Prerequisites
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- [Node.js](https://nodejs.org/) (v18 or higher recommended)
+- [npm](https://www.npmjs.com/) (v9 or higher)
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+---
+
+## Setup & Installation
+
+1. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+2. **Configure Environment Variables**:
+   Create a `.env` file in the `rental-management-frontend` directory.
+
+3. **Start the development server**:
+   ```bash
+   npm run dev
+   ```
+   - Default URL: `http://localhost:5173`
+
+---
+
+## Environment Variables
+
+| Variable | Description | Default |
+| :--- | :--- | :--- |
+| `VITE_API_URL` | The full URL of the backend API | `http://localhost:4000` |
+
+---
+
+## Scripts
+
+- `npm run dev`: Starts the Vite development server.
+- `npm run build`: Compiles the application for production.
+- `npm run lint`: Runs ESLint for code quality checks.
+- `npm run preview`: Previews the production build locally.
+- `npm run generate:types`: Pulls the latest Swagger schema from the backend and generates TypeScript types.
+
+---
+
+## Billing Logic Mirror
+
+The frontend contains a client-side implementation of the billing logic (`src/lib/billingUtils.ts`) that exactly mirrors the backend's calculation rules. This allows the UI to provide **real-time billing estimations** to the user during the return process before the final submission to the backend.
+
+**Rules:**
+- Before the 5th: 0 charge for the month.
+- 5th to 15th: 0.5 months charge.
+- After the 15th: 1.0 month charge.

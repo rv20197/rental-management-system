@@ -46,8 +46,7 @@ A comprehensive backend service for managing a goods/equipment rental business. 
    ```
 
 3. **Database Creation**:
-   - Open your MySQL GUI (like MySQL Workbench or DBeaver) or CLI (`mysql`).
-   - Create a new database named `rental_management` (or whatever you named it in your `.env`).
+   - The application is configured to automatically create the database if it doesn't exist. Ensure your MySQL server is running and the credentials in `.env` are correct.
 
 4. **Run the server**:
    - For development (with auto-restart via nodemon):
@@ -68,7 +67,7 @@ A comprehensive backend service for managing a goods/equipment rental business. 
      ```
      Environment variables for Docker are defined in `docker-compose.yml` (DB_* and PORT, JWT_SECRET, etc.).
 
-> **Developer note**: the project currently uses `sequelize.sync({ force: true })` in `src/app.ts` to rebuild tables each launch. This is convenient for initial local development, but it **drops all data** on restart. Before deploying or seeding real data switch to `{ alter: true }` or remove the option entirely.
+> **Developer note**: the project currently uses `sequelize.sync({ alter: true })` by default in development to keep the database schema in sync. In production, it is recommended to transition to a migration-based approach (e.g., Sequelize CLI). 
 
 
 ---
@@ -85,6 +84,13 @@ DB_USER=root
 DB_PASSWORD=rootpassword
 DB_NAME=rental_management
 JWT_SECRET=supersecretjwtkey123
+CORS_ORIGIN=http://localhost:3000,http://localhost:5173
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your_email@gmail.com
+SMTP_PASS=your_app_password_here
+FROM_NAME=Rental Management
+FROM_EMAIL=your_email@gmail.com
 ```
 
 ---
@@ -109,7 +115,7 @@ The database consists of the following 5 models:
 ## API Endpoints Overview
 
 For a live interaction with APIs, Swagger is enabled. Once the server is running, visit:
-**[http://localhost:3000/api-docs](http://localhost:3000/api-docs)**
+**[http://localhost:4000/api-docs](http://localhost:4000/api-docs)**
 
 Overview of standard routes:
 
@@ -146,6 +152,13 @@ Overview of standard routes:
   - `POST /api/billings/return` (Process rental return and generate bill automatically)
   - `DELETE /api/billings/:id` (Admin only)
 
+### Automated Billing Logic
+The system automatically calculates the bill amount upon item return based on the following rules:
+- **Return before the 5th**: No charge for the current month.
+- **Return between 5th and 15th**: Charge for 15 days (0.5 months).
+- **Return after the 15th**: Charge for the whole month (1.0 month).
+- **Full Months**: Any full calendar month between the start date and the return month is charged at the full monthly rate.
+
 ---
 
 ## Debugging Guide
@@ -154,16 +167,16 @@ Overview of standard routes:
 If you get a 500 server error around missing properties (e.g., trying to access `bill.Rental` and getting undefined):
 - Make sure the foreign keys align (e.g., `itemId`, `customerId` are correctly formed as IDs).
 - Verify associations are properly defined in `src/models/index.js`.
-- If a schema changed, Sequelize might lack the column. Use `force: true` in `app.js` briefly to rebuild tables (WARNING: Drops all existing data limit this to development only).
+- If a schema changed, Sequelize might lack the column. Use `DB_SYNC_ALTER=true` in `.env` to allow Sequelize to automatically alter the tables. (In development mode, this is enabled by default).
 
 **2. Authentication/401 Errors**
 - Pass the token as a Bearer token: `Authorization: Bearer <your_jwt_token>`.
-- Is the role restricted? Creating items (`/items` POST) typically requires `admin` privileges (see `authMiddleware.js` & `itemRoutes.js`). Change your user role manually in the PG Database to `admin` if testing.
+- Is the role restricted? Creating items (`/items` POST) typically requires `admin` privileges (see `authMiddleware.js` & `itemRoutes.js`). Change your user role manually in the database to `admin` if testing.
 
 **3. Database Connection Error**
-- `SequelizeConnectionError`: Check that your `pg` server is active.
-- Verify `DB_USER` and `DB_PASSWORD` inside `.env` match your local pgAdmin settings.
-- Verify the DB database named `rental_management` was actually created.
+- `SequelizeConnectionError` or `Access denied`: Check that your MySQL server is active and the credentials in `.env` match your local instance.
+- If using Docker, use the credentials defined in `docker-compose.yml`.
+- The application automatically attempts to create the database named `DB_NAME` if it doesn't exist.
 
 **4. Seeing SQL Queries Output**
 - Need to know what exact query Sequelize runs against the database? 

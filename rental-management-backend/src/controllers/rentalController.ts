@@ -4,6 +4,8 @@ import { Item, InventoryUnit } from '../models/Item';
 import { generateRentalPDF } from '../utils/pdfUtils';
 import { Op } from 'sequelize';
 
+import { calculateMonthsRented } from '../utils/billingUtils';
+
 /**
  * Returns all active and historical Rentals
  */
@@ -182,9 +184,7 @@ export const downloadEstimationPDF = async (req: Request, res: Response) => {
     // Calculate estimation logic same as return bill but based on scheduled duration
     const startDate = new Date(rental.startDate);
     const endDate = new Date(rental.endDate);
-    const msDiff = endDate.getTime() - startDate.getTime();
-    let monthsRented = Math.ceil(msDiff / (1000 * 3600 * 24 * 30));
-    if (monthsRented < 1) monthsRented = 1;
+    const monthsRented = calculateMonthsRented(startDate, endDate);
 
     const monthlyRate = rental.Item ? parseFloat(rental.Item.monthlyRate) : 0;
     const billAmount = rental.quantity * monthlyRate * monthsRented;

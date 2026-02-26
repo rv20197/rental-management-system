@@ -14,6 +14,7 @@ export interface Rental {
   endDate?: string;
   depositAmount?: number;
   status: "active" | "completed" | "cancelled";
+  createdAt?: string;
   Item?: Item;
   Customer?: Customer;
 }

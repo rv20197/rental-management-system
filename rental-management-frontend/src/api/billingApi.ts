@@ -1,12 +1,16 @@
 import { baseUrl } from "@/api";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
+import type { Rental } from "./rentalApi";
+
 export interface Billing {
   id: number;
   rentalId: number;
   amount: number;
   dueDate: string;
   status: "pending" | "paid" | "overdue";
+  createdAt?: string;
+  Rental?: Rental;
 }
 
 export interface CreateBillingPayload {

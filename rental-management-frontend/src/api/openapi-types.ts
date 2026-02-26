@@ -110,6 +110,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Logout a user */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Logout successful */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/billings": {
         parameters: {
             query?: never;
@@ -186,7 +220,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    id: string;
+                    id: number;
                 };
                 cookie?: never;
             };
@@ -209,7 +243,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    id: string;
+                    id: number;
                 };
                 cookie?: never;
             };
@@ -243,7 +277,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    id: string;
+                    id: number;
                 };
                 cookie?: never;
             };
@@ -301,6 +335,44 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billings/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download a billing record as PDF */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description PDF file of the bill */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/pdf": string;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -382,7 +454,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    id: string;
+                    id: number;
                 };
                 cookie?: never;
             };
@@ -403,7 +475,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    id: string;
+                    id: number;
                 };
                 cookie?: never;
             };
@@ -432,7 +504,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    id: string;
+                    id: number;
                 };
                 cookie?: never;
             };
@@ -529,7 +601,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    id: string;
+                    id: number;
                 };
                 cookie?: never;
             };
@@ -557,7 +629,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    id: string;
+                    id: number;
                 };
                 cookie?: never;
             };
@@ -587,7 +659,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    id: string;
+                    id: number;
                 };
                 cookie?: never;
             };
@@ -645,14 +717,14 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        itemId?: string;
-                        customerId?: string;
+                        itemId?: number;
+                        customerId?: number;
                         /** @description Quantity of items to be rented */
                         quantity?: number;
                         /** Format: date-time */
                         startDate?: string;
-                        /** @description Auto-generated array of distinct tracked UUIDs tied to this physical lease (FIFO dispatched). */
-                        inventoryUnitIds?: string[];
+                        /** @description Auto-generated array of distinct tracked IDs tied to this physical lease (FIFO dispatched). */
+                        inventoryUnitIds?: number[];
                         /** Format: date-time */
                         endDate?: string;
                         depositAmount?: number;
@@ -690,7 +762,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    id: string;
+                    id: number;
                 };
                 cookie?: never;
             };
@@ -711,7 +783,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    id: string;
+                    id: number;
                 };
                 cookie?: never;
             };
@@ -720,6 +792,8 @@ export interface paths {
                     "application/json": {
                         /** @enum {string} */
                         status?: "active" | "completed" | "cancelled";
+                        /** Format: date-time */
+                        endDate?: string;
                     };
                 };
             };
@@ -740,7 +814,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    id: string;
+                    id: number;
                 };
                 cookie?: never;
             };
@@ -755,6 +829,44 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rentals/{id}/estimation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download estimation PDF for a rental */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description PDF file of the estimation */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/pdf": string;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;

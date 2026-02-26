@@ -1,12 +1,14 @@
+import dotenv from "dotenv";
+dotenv.config();
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import dotenv from "dotenv";
 import logger from "./utils/logger";
 import morganMiddleware from "./middleware/loggingMiddleware";
 import { sequelize } from "./models";
 import setupSwagger from "./config/swagger";
 import { startReminderJob } from "./services/reminderService";
+import { ensureDatabaseExists } from "./utils/dbSetup";
 
 import authRoutes from "./routes/authRoutes";
 import itemRoutes from "./routes/itemRoutes";
@@ -14,16 +16,19 @@ import customerRoutes from "./routes/customerRoutes";
 import rentalRoutes from "./routes/rentalRoutes";
 import billingRoutes from "./routes/billingRoutes";
 
-// Initialize Environment Variables first thing!
-dotenv.config();
-
 /**
  * Instantiate Express Engine instances internally
  */
 const app = express();
+
+const allowedOrigins = process.env.CORS_ORIGIN 
+  ? process.env.CORS_ORIGIN.split(",") 
+  : ["http://localhost:3000", "http://localhost:5173"];
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || "*",
+  origin: allowedOrigins,
   credentials: true,
+  exposedHeaders: ["Content-Disposition"],
 }));
 app.use(cookieParser());
 app.use(express.json());
@@ -59,6 +64,9 @@ const PORT = process.env.PORT || 3000;
  */
 const startServer = async () => {
   try {
+    // Ensure database exists before attempting to connect via Sequelize
+    await ensureDatabaseExists();
+
     await sequelize.authenticate();
     logger.info("Database connected successfully.");
 
@@ -81,8 +89,9 @@ const startServer = async () => {
         `Swagger documentation available at http://localhost:${PORT}/api-docs`,
       );
     });
-  } catch (error) {
-    logger.error("Unable to start the server:", error);
+  } catch (error: any) {
+    logger.error(`Unable to start the server: ${error.message}`);
+    if (error.stack) logger.debug(error.stack);
   }
 };
 

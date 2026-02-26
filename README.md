@@ -56,11 +56,29 @@ The Goods Rental Management System is designed to streamline the operations of r
 
 ```text
 .
-├── rental-management-backend/  # Express API source code
-├── rental-management-frontend/ # React SPA source code
-├── docker-compose.yml          # Docker composition for full-stack
-├── LICENSE                     # Apache 2.0 License
-└── README.md                   # Main documentation
+├── rental-management-backend/       # Node.js/Express Backend
+│   ├── src/
+│   │   ├── config/                  # DB and Swagger configurations
+│   │   ├── controllers/             # Request handlers
+│   │   ├── models/                  # Sequelize models
+│   │   ├── routes/                  # API route definitions
+│   │   ├── services/                # Business logic (e.g., email, reminders)
+│   │   ├── utils/                   # Shared utilities (billing logic, PDF, DB setup)
+│   │   └── app.ts                   # App entry point
+│   ├── swagger.json                 # Generated API documentation
+│   └── package.json                 # Backend scripts and dependencies
+├── rental-management-frontend/      # React Frontend
+│   ├── src/
+│   │   ├── api/                     # Axios API clients
+│   │   ├── components/              # Shared UI components
+│   │   ├── pages/                   # Main application pages
+│   │   ├── lib/                     # Client-side billing logic mirroring backend
+│   │   ├── store/                   # Redux Toolkit state management
+│   │   └── main.tsx                 # Frontend entry point
+│   └── package.json                 # Frontend scripts and dependencies
+├── docker-compose.yml               # Docker configuration for full-stack
+├── LICENSE                          # Apache 2.0 License
+└── README.md                        # Main documentation
 ```
 
 ---
@@ -101,8 +119,8 @@ The easiest way to get the entire system running is using Docker Compose.
     ```bash
     npm install
     ```
-3.  Configure `.env` file (copy from `.env.example` if available, or create one based on the [Environment Variables](#environment-variables) section).
-4.  Ensure MySQL is running and the database `rental_management` exists.
+3.  Configure `.env` file (copy from `.env.example`, and update with your own MySQL/SMTP credentials).
+4.  Ensure MySQL server is running locally (the application will attempt to create the `rental_management` database if it doesn't exist).
 5.  Start the development server:
     ```bash
     npm run dev
@@ -118,7 +136,7 @@ The easiest way to get the entire system running is using Docker Compose.
     ```bash
     npm install
     ```
-3.  Configure `.env` file (ensure `VITE_API_URL` points to your backend).
+3.  Configure `.env` file (ensure `VITE_API_URL` points to your backend, usually `http://localhost:4000`).
 4.  Start the development server:
     ```bash
     npm run dev
@@ -140,11 +158,13 @@ The easiest way to get the entire system running is using Docker Compose.
 | `DB_PASSWORD` | MySQL database password | - |
 | `DB_NAME` | MySQL database name | `rental_management` |
 | `JWT_SECRET` | Secret key for JWT signing | - |
-| `CORS_ORIGIN` | Allowed CORS origin | `http://localhost:3000` |
+| `CORS_ORIGIN` | Allowed CORS origin (comma separated) | `http://localhost:3000,http://localhost:5173` |
 | `SMTP_HOST` | SMTP server for emails | `smtp.gmail.com` |
 | `SMTP_PORT` | SMTP server port | `587` |
 | `SMTP_USER` | SMTP username | - |
 | `SMTP_PASS` | SMTP password | - |
+| `FROM_NAME` | Name used in "From" field for emails & PDFs | `Rental Management` |
+| `FROM_EMAIL` | Email address used in "From" field | - |
 
 ### Frontend (`rental-management-frontend/.env`)
 
@@ -184,36 +204,68 @@ Once the backend is running, you can access the interactive Swagger documentatio
 
 ## Automated Services
 
-### Daily Email/System Reminders
+### Automated Database Setup
+On server startup, the backend automatically checks if the configured MySQL database exists. If not, it attempts to create it using the provided credentials. It also handles table synchronization (using `alter: true` in development).
+
+### Daily System Reminders
 A cron-job script (`src/services/reminderService.ts`) runs once daily at **8:00 AM**.
-- It scans the **Billing** table.
-- Finds any unpaid bills expiring in exactly 3 days and sends reminders.
-- Marks bills as `overdue` when the `dueDate` passes.
+- **Payment Reminders**: Sends email alerts for unpaid bills expiring in exactly 3 days.
+- **Overdue Tracking**: Automatically marks bills as `overdue` when the `dueDate` passes.
+
+### Automated Billing Logic
+The system implements a specific charging rule for partial months upon item return:
+- **Return before the 5th**: 0% charge for the current month.
+- **Return between 5th and 15th**: 50% charge (0.5 months) for the current month.
+- **Return after the 15th**: 100% charge (1.0 month) for the current month.
+- **Previous Months**: All full calendar months prior to the return month are charged at the full rate.
+
+### PDF Document Generation
+The system generates professional PDF documents for **Rentals** (Estimations) and **Billings** (Invoices). These PDFs include:
+- Seller's company name, address, and contact.
+- Customer details and delivery address.
+- Itemized table with **Start Date** and **End Date** for the rental period.
+- Standardized currency formatting (`Rs.`).
 
 ---
 
-## Debugging Guide
+## Debugging & Troubleshooting
 
 1.  **Database Connection Issues**:
-    - Ensure MySQL service is running.
-    - Check if the database name in `.env` matches your MySQL instance.
-    - Verify `DB_USER` and `DB_PASSWORD`.
-2.  **Authentication (401 Errors)**:
+    - Ensure your local MySQL service is running.
+    - Check if the database credentials (user, password) in `rental-management-backend/.env` are correct for your local instance.
+    - If using Docker, use the credentials defined in `docker-compose.yml`.
+2.  **CORS Errors**:
+    - Ensure `CORS_ORIGIN` in the backend `.env` includes the URL where your frontend is running (default is `http://localhost:5173` for manual setup).
+3.  **Authentication (401 Errors)**:
     - Ensure you are sending the `Authorization: Bearer <token>` header.
     - Check if the token has expired.
-3.  **Sequelize Sync**:
-    - The backend uses `sequelize.sync({ alter: true })` in development to automatically update the schema. In production, it defaults to a safe sync. Check `DB_SYNC_ALTER` env var.
-4.  **SQL Logging**:
+4.  **Email Sending Errors**:
+    - If using Gmail, you MUST use an "App Password" instead of your regular password.
+    - Ensure `SMTP_USER` and `SMTP_PASS` are correctly set in the backend `.env`.
+5.  **Sequelize Sync**:
+    - The backend uses `sequelize.sync({ alter: true })` in development to automatically update the schema.
+6.  **SQL Logging**:
     - To see raw SQL queries, change `logging: false` to `logging: console.log` in `src/config/database.ts`.
+
+---
+
+## Testing & Quality Assurance
+
+Currently, the project is in the initial development phase, and comprehensive automated tests are planned for the next milestone.
+
+- **Backend**: Planned usage of **Jest** and **Supertest** for unit and integration testing of API endpoints and business logic.
+- **Frontend**: Planned usage of **Vitest** and **React Testing Library** for component and state management testing.
+- **Linting**: Both projects use **ESLint** and **TypeScript** to ensure code quality and type safety.
 
 ---
 
 ## TODOs & Future Improvements
 
-- [ ] **Tests**: Implement unit and integration tests for both backend (Jest/Supertest) and frontend (Vitest/React Testing Library).
+- [ ] **Tests**: Implement unit and integration tests as described above.
 - [ ] **Migrations**: Transition from `sequelize.sync` to a robust migration system (Sequelize CLI).
 - [ ] **File Storage**: Add support for uploading item images.
 - [ ] **Logging**: Improve production logging with a centralized logging service.
+- [ ] **Deployment**: Add CI/CD pipelines for automated deployment.
 
 ---
 

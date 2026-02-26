@@ -37,10 +37,21 @@ const BillingRow = React.memo(function BillingRow({ billing, onPay, onDelete }: 
       const response = await api.get(`/billings/${billing.id}/download`, {
         responseType: 'blob',
       });
+      
+      let filename = `bill-${billing.id}.pdf`;
+      const disposition = response.headers['content-disposition'];
+      if (disposition && disposition.indexOf('attachment') !== -1) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) { 
+          filename = matches[1].replace(/['"]/g, '');
+        }
+      }
+
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `bill-${billing.id}.pdf`);
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -54,6 +65,7 @@ const BillingRow = React.memo(function BillingRow({ billing, onPay, onDelete }: 
     <TableRow>
       <TableCell className="font-mono text-xs">{billing.id}</TableCell>
       <TableCell className="font-mono text-xs">{billing.rentalId}</TableCell>
+      <TableCell className="whitespace-nowrap">{new Date(billing.dueDate).toLocaleDateString()}</TableCell>
       <TableCell className="font-semibold">₹{Number(billing.amount).toFixed(2)}</TableCell>
       <TableCell>
         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -169,6 +181,7 @@ export default function BillingsPage() {
                   <TableRow>
                     <TableHead className="w-[100px]">ID</TableHead>
                     <TableHead>Rental ID</TableHead>
+                    <TableHead>End Date</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-[100px]">Actions</TableHead>
