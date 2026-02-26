@@ -46,7 +46,7 @@ export const createRental = async (req: Request, res: Response) => {
       await InventoryUnit.bulkCreate(inventoryUnitsPayload as any);
     }
 
-    // Grab EXACT specific units out of MySQL based on oldest added date (FIFO)
+    // Grab EXACT specific units from inventory based on oldest added date (FIFO)
     const availableUnits: any = await InventoryUnit.findAll({
       where: {
         itemId: itemId,
@@ -153,7 +153,7 @@ export const updateRental = async (req: Request, res: Response) => {
 };
 
 /**
- * Obliterates target Rental (also deletes cascading generated Billings under MySQL rule)
+ * Obliterates target Rental (cascading relationships handled by the ORM rules)
  */
 export const deleteRental = async (req: Request, res: Response) => {
   try {

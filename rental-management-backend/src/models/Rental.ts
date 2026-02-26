@@ -41,7 +41,7 @@ const Rental = sequelize.define<RentalInstance>('Rental', {
     defaultValue: 1, // Default to 1 item if not specified
   },
   inventoryUnitIds: {
-    type: DataTypes.JSON, // MySQL JSON array of IDs
+    type: DataTypes.JSON, // stores array of inventory unit IDs
     allowNull: false,
     defaultValue: []
   },

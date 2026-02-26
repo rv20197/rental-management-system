@@ -1,6 +1,6 @@
 # Goods Rental Management Backend
 
-A comprehensive backend service for managing a goods/equipment rental business. Built with Node.js, Express, Sequelize (MySQL), and documented using Swagger.
+A comprehensive backend service for managing a goods/equipment rental business. Built with Node.js, Express, Sequelize (PostgreSQL by default), and documented using Swagger.
 
 ## Table of Contents
 
@@ -18,7 +18,7 @@ A comprehensive backend service for managing a goods/equipment rental business. 
 ## Tech Stack
 
 - **Framework**: Express.js
-- **Database**: MySQL
+- **Database**: PostgreSQL (configurable via DB_DIALECT)
 - **ORM**: Sequelize
 - **Authentication**: JWT (JSON Web Tokens) & BcryptJS
 - **API Documentation**: Swagger (swagger-jsdoc & swagger-ui-express)
@@ -29,7 +29,7 @@ A comprehensive backend service for managing a goods/equipment rental business. 
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) (v14 or higher recommended)
-- [MySQL](https://www.mysql.com/) running locally or via a cloud provider.
+- [PostgreSQL](https://www.postgresql.org/) running locally or via a cloud provider.
 
 ---
 
@@ -46,7 +46,10 @@ A comprehensive backend service for managing a goods/equipment rental business. 
    ```
 
 3. **Database Creation**:
-   - The application is configured to automatically create the database if it doesn't exist. Ensure your MySQL server is running and the credentials in `.env` are correct.
+   - The application is configured to automatically create the database if it doesn't exist. Ensure your PostgreSQL server is running and the credentials in `.env` are correct (you can override dialect with DB_DIALECT if using MySQL).
+   - When connecting to a managed service such as **Neon**, set `DB_SSL=true` and
+     `SKIP_DB_SETUP=true` in your `.env`. These providers usually pre‑provision the
+     database and require SSL connections.
 
 4. **Run the server**:
    - For development (with auto-restart via nodemon):
@@ -78,10 +81,11 @@ The project uses a `.env` file for configuration. Check that it contains:
 
 ```env
 PORT=4000
+DB_DIALECT=postgres   # or mysql if you need backwards compatibility
 DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=rootpassword
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=postgrespassword
 DB_NAME=rental_management
 JWT_SECRET=supersecretjwtkey123
 CORS_ORIGIN=http://localhost:3000,http://localhost:5173
@@ -174,7 +178,7 @@ If you get a 500 server error around missing properties (e.g., trying to access 
 - Is the role restricted? Creating items (`/items` POST) typically requires `admin` privileges (see `authMiddleware.js` & `itemRoutes.js`). Change your user role manually in the database to `admin` if testing.
 
 **3. Database Connection Error**
-- `SequelizeConnectionError` or `Access denied`: Check that your MySQL server is active and the credentials in `.env` match your local instance.
+- `SequelizeConnectionError` or `Access denied`: Check that your database server is active and the credentials in `.env` match your local instance.
 - If using Docker, use the credentials defined in `docker-compose.yml`.
 - The application automatically attempts to create the database named `DB_NAME` if it doesn't exist.
 
@@ -203,7 +207,7 @@ A `docker-compose.yml` at the repository root can start the database, backend an
 
 **Important environment variables (set in `docker-compose.yml` or via your own `.env`):**
 ```
-DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
+DB_DIALECT, DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
 PORT (default 4000)
 JWT_SECRET
 ```

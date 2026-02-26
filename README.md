@@ -32,7 +32,7 @@ The Goods Rental Management System is designed to streamline the operations of r
 ### Backend
 - **Framework**: Express.js (Node.js)
 - **Language**: TypeScript
-- **Database**: MySQL 8.0
+- **Database**: PostgreSQL (Postgres 15+)
 - **ORM**: Sequelize (with `sequelize-typescript`)
 - **Authentication**: JWT & BcryptJS
 - **Documentation**: Swagger (OpenAPI 3.0)
@@ -87,7 +87,7 @@ The Goods Rental Management System is designed to streamline the operations of r
 
 - [Node.js](https://nodejs.org/) (v18 or higher recommended)
 - [npm](https://www.npmjs.com/) (v9 or higher)
-- [MySQL](https://www.mysql.com/) (v8.0)
+- [PostgreSQL](https://www.postgresql.org/) (v15+)
 - [Docker](https://www.docker.com/) & [Docker Compose](https://docs.docker.com/compose/) (optional, for containerized setup)
 
 ---
@@ -105,7 +105,7 @@ The easiest way to get the entire system running is using Docker Compose.
     ```
     - The backend will be available at `http://localhost:4000`.
     - The frontend will be available at `http://localhost:3000`.
-    - MySQL will be running on port `3306`.
+    - PostgreSQL will be running on port `5432`.
 
 ### Manual Setup (Local Development)
 
@@ -119,8 +119,11 @@ The easiest way to get the entire system running is using Docker Compose.
     ```bash
     npm install
     ```
-3.  Configure `.env` file (copy from `.env.example`, and update with your own MySQL/SMTP credentials).
-4.  Ensure MySQL server is running locally (the application will attempt to create the `rental_management` database if it doesn't exist).
+3.  Configure `.env` file (copy from `.env.example`, then update credentials).
+    - if you're using a hosted Postgres provider such as **Neon**, set `DB_SSL=true` and
+      `SKIP_DB_SETUP=true` since databases are pre‑provisioned.
+4.  Ensure your PostgreSQL server is accessible (local or remote). The app will
+    create the database on startup unless `SKIP_DB_SETUP` is `true`.
 5.  Start the development server:
     ```bash
     npm run dev
@@ -152,10 +155,11 @@ The easiest way to get the entire system running is using Docker Compose.
 | Variable | Description | Default |
 | :--- | :--- | :--- |
 | `PORT` | Backend server port | `4000` |
-| `DB_HOST` | MySQL database host | `localhost` |
-| `DB_PORT` | MySQL database port | `3306` |
-| `DB_USER` | MySQL database user | `root` |
-| `DB_PASSWORD` | MySQL database password | - |
+| `DB_DIALECT` | Database dialect (postgres/mysql) | `postgres` |
+| `DB_HOST` | PostgreSQL database host | `localhost` |
+| `DB_PORT` | PostgreSQL database port | `5432` |
+| `DB_USER` | PostgreSQL database user | `postgres` |
+| `DB_PASSWORD` | Database password (Postgres by default) | - |
 | `DB_NAME` | MySQL database name | `rental_management` |
 | `JWT_SECRET` | Secret key for JWT signing | - |
 | `CORS_ORIGIN` | Allowed CORS origin (comma separated) | `http://localhost:3000,http://localhost:5173` |
@@ -205,7 +209,7 @@ Once the backend is running, you can access the interactive Swagger documentatio
 ## Automated Services
 
 ### Automated Database Setup
-On server startup, the backend automatically checks if the configured MySQL database exists. If not, it attempts to create it using the provided credentials. It also handles table synchronization (using `alter: true` in development).
+On server startup, the backend automatically checks if the configured database exists (Postgres by default). If not, it attempts to create it using the provided credentials. It also handles table synchronization (using `alter: true` in development).
 
 ### Daily System Reminders
 A cron-job script (`src/services/reminderService.ts`) runs once daily at **8:00 AM**.
@@ -263,7 +267,6 @@ Currently, the project is in the initial development phase, and comprehensive au
 
 - [ ] **Tests**: Implement unit and integration tests as described above.
 - [ ] **Migrations**: Transition from `sequelize.sync` to a robust migration system (Sequelize CLI).
-- [ ] **File Storage**: Add support for uploading item images.
 - [ ] **Logging**: Improve production logging with a centralized logging service.
 - [ ] **Deployment**: Add CI/CD pipelines for automated deployment.
 

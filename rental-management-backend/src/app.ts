@@ -57,7 +57,7 @@ const PORT = process.env.PORT || 3000;
 
 /**
  * Entry method wrapper. Handles:
- * 1. MySQL Database connect/authenticate
+ * 1. Database connect/authenticate (dialect controlled via DB_DIALECT)
  * 2. Sequencing initialization (`sync()`)
  * 3. Starting decoupled job processes (like Node-cron)
  * 4. Firing Express `.listen()` logic
@@ -95,6 +95,8 @@ const startServer = async () => {
   }
 };
 
-startServer();
+if (process.env.NODE_ENV !== "test") {
+  startServer();
+}
 
 export default app;
