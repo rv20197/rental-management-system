@@ -1,5 +1,6 @@
-﻿import { Suspense, lazy } from "react";
+import { Suspense, lazy } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const SignupPage = lazy(() => import("./pages/SignupPage"));
@@ -59,6 +60,7 @@ function App() {
         </Routes>
       </Suspense>
       <Toaster />
+      <SpeedInsights />
     </Router>
   );
 }
