@@ -1,17 +1,17 @@
 services:
   db:
-    image: postgres:18
+    image: postgres:17-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: rental
       POSTGRES_USER: user
       POSTGRES_PASSWORD: pass
     volumes:
-      - postgres_data:/var/lib/postgresql
+      - postgres_data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -38,21 +38,21 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    # volumes:
-    #  - ./rental-management-backend:/app       # optional for dev bind mount
+#     volumes:
+#      - ./rental-management-backend:/app       # optional for dev bind mount
 
   frontend:
     build:
       context: ./rental-management-frontend
       args:
         # this value will be baked into the static files at build time
-        VITE_API_URL: http://localhost:4000
+        VITE_API_URL: /api
     restart: unless-stopped
     ports:
       - "3000:80"
     # runtime env still available if you want it, but the build arg is the key
     environment:
-      VITE_API_URL: http://localhost:4000
+      VITE_API_URL: /api
     depends_on:
       - backend
 

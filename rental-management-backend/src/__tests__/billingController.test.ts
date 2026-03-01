@@ -68,6 +68,7 @@ describe('billingController', () => {
                 quantity: 5,
                 status: 'active',
                 startDate: new Date(),
+                endDate: new Date(),
                 inventoryUnitIds: ['u1', 'u2', 'u3', 'u4', 'u5'],
                 Item: mockItem,
                 update: jest.fn(),

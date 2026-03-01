@@ -78,8 +78,9 @@ export const returnAndBill = async (req: Request, res: Response) => {
 
     // Calculate dynamic cost based on return day rules
     const startDate = new Date(rental.startDate);
+    const endDate = new Date(rental.endDate);
     const now = new Date();
-    const monthsRented = calculateMonthsRented(startDate, now);
+    const monthsRented = calculateMonthsRented(startDate, now, endDate);
 
     const monthlyRate = rental.Item ? parseFloat(rental.Item.monthlyRate) : 0;
     const billAmount = qtyToReturn * monthlyRate * monthsRented;

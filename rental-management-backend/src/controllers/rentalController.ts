@@ -184,7 +184,7 @@ export const downloadEstimationPDF = async (req: Request, res: Response) => {
     // Calculate estimation logic same as return bill but based on scheduled duration
     const startDate = new Date(rental.startDate);
     const endDate = new Date(rental.endDate);
-    const monthsRented = calculateMonthsRented(startDate, endDate);
+    const monthsRented = calculateMonthsRented(startDate, endDate, endDate);
 
     const monthlyRate = rental.Item ? parseFloat(rental.Item.monthlyRate) : 0;
     const billAmount = rental.quantity * monthlyRate * monthsRented;
