@@ -1,4 +1,5 @@
 import { baseUrl } from "@/api";
+import { getSessionToken } from "@/lib/browser";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import type { Item } from "./itemApi";
 import type { Customer } from "./customerApi";
@@ -41,7 +42,7 @@ export const rentalApi = createApi({
     baseUrl: baseUrl,
     credentials: 'include',
     prepareHeaders: (headers) => {
-      const token = sessionStorage.getItem("token");
+      const token = getSessionToken();
       if (token) {
         headers.set("authorization", `Bearer ${token}`);
       }

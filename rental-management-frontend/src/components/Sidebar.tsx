@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import api from "../api";
+import { clearSessionToken } from "../lib/browser";
 import { ThemeToggle } from "./ThemeToggle";
 import {Button} from "@/components/ui/button.tsx";
 
@@ -29,7 +30,7 @@ export function Sidebar() {
     } catch (err) {
       console.error("Logout error:", err);
     }
-    sessionStorage.removeItem("token");
+    clearSessionToken();
     window.location.href = "/login";
   };
 

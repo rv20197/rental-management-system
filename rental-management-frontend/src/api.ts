@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getSessionToken } from "./lib/browser";
 
 const base = import.meta.env.VITE_API_URL || "http://localhost:4000";
 export const baseUrl = `${base}/api`;
@@ -13,9 +14,7 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    // Session-based token handling prefers cookies which are managed by the browser automatically.
-    // If we have any logic requiring a token from sessionStorage, we should consider removing it.
-    const token = sessionStorage.getItem("token");
+    const token = getSessionToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

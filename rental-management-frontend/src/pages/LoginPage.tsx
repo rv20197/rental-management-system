@@ -7,6 +7,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Card } from "../components/ui/card";
 import { Alert } from "../components/ui/alert";
+import { setSessionToken } from "../lib/browser";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -25,7 +26,7 @@ export default function LoginPage() {
     setError(null);
     try {
       const response = await login({ email, password }).unwrap();
-      sessionStorage.setItem("token", response.token);
+      setSessionToken(response.token);
       toast.success("Welcome back!");
       navigate("/dashboard");
     } catch (err: any) {

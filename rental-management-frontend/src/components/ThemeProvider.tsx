@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import { getLocalStorageItem, isBrowser, setLocalStorageItem } from "@/lib/browser";
 
 type Theme = "dark" | "light" | "system";
 
@@ -22,10 +23,14 @@ export function ThemeProvider({
   ...props
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
+    () => (getLocalStorageItem(storageKey) as Theme) || defaultTheme
   );
 
   useEffect(() => {
+    if (!isBrowser()) {
+      return;
+    }
+
     const root = window.document.documentElement;
 
     root.classList.remove("light", "dark");
@@ -46,7 +51,7 @@ export function ThemeProvider({
   const value = {
     theme,
     setTheme: (theme: Theme) => {
-      localStorage.setItem(storageKey, theme);
+      setLocalStorageItem(storageKey, theme);
       setTheme(theme);
     },
   };

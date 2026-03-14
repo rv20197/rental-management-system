@@ -1,5 +1,6 @@
 ﻿import { Suspense, lazy } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { getSessionToken } from "./lib/browser";
 
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const SignupPage = lazy(() => import("./pages/SignupPage"));
@@ -14,12 +15,12 @@ import { Toaster } from "./components/ui/sonner";
 
 function App() {
   const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-    const token = sessionStorage.getItem("token");
+    const token = getSessionToken();
     return token ? <Layout>{children}</Layout> : <Navigate to="/login" replace />;
   };
 
   const PublicRoute = ({ children }: { children: React.ReactNode }) => {
-    const token = sessionStorage.getItem("token");
+    const token = getSessionToken();
     return token ? <Navigate to="/dashboard" replace /> : <>{children}</>;
   };
 
