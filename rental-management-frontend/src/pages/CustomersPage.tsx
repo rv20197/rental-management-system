@@ -118,10 +118,10 @@ export default function CustomersPage() {
   };
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Customers</h1>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Customers</h1>
           <p className="text-muted-foreground">Manage your customer database and contact information.</p>
         </div>
         <Button onClick={() => setAddOpen(true)} className="w-full sm:w-auto">
@@ -151,7 +151,7 @@ export default function CustomersPage() {
           ) : filteredCustomers.length === 0 ? (
             <div className="py-10 text-center text-muted-foreground">No customers found.</div>
           ) : (
-            <div className="rounded-md border">
+            <div className="overflow-hidden rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -182,15 +182,17 @@ export default function CustomersPage() {
           )}
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-end space-x-2 py-4">
-              <div className="text-sm text-muted-foreground mr-auto">
+            <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-end">
+              <div className="mr-auto text-sm text-muted-foreground">
                 Page {page + 1} of {totalPages}
               </div>
+              <div className="flex gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setPage((p) => Math.max(p - 1, 0))}
                 disabled={page === 0}
+                className="flex-1 sm:flex-none"
               >
                 <ChevronLeft className="h-4 w-4" />
                 Previous
@@ -200,10 +202,12 @@ export default function CustomersPage() {
                 size="sm"
                 onClick={() => setPage((p) => Math.min(p + 1, totalPages - 1))}
                 disabled={page + 1 >= totalPages}
+                className="flex-1 sm:flex-none"
               >
                 Next
                 <ChevronRight className="h-4 w-4" />
               </Button>
+              </div>
             </div>
           )}
         </CardContent>
@@ -211,12 +215,12 @@ export default function CustomersPage() {
 
       {/* Add Customer Dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Add New Customer</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleAdd} className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="firstName">First Name</Label>
                 <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />

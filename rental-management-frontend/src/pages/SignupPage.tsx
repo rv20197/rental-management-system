@@ -67,10 +67,10 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <Card className="p-8">
+        <Card className="p-5 sm:p-8">
           {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
+          <div className="mb-6 text-center sm:mb-8">
+            <h1 className="mb-2 text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">
               Join Us
             </h1>
             <p className="text-slate-600 dark:text-slate-400">
@@ -88,7 +88,7 @@ export default function SignupPage() {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Name Fields */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label htmlFor="firstName" className="text-sm font-semibold">
                   First Name
