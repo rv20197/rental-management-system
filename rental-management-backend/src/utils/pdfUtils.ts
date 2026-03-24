@@ -10,7 +10,7 @@ export const generateRentalPDF = (billing: any, res: Response) => {
 
     const sellerCompany = process.env.FROM_NAME || 'Rental Management';
 
-    const customer = billing.Rental?.Customer;
+    const customer = billing.Rental?.Customer || billing.Customer;
     const customerName = customer ? `${customer.firstName}_${customer.lastName}` : 'Customer';
     const dateStr = new Date(billing.createdAt || new Date()).toISOString().split('T')[0];
     const type = isEstimation ? 'Estimate' : 'Bill';
@@ -66,10 +66,8 @@ export const generateRentalPDF = (billing: any, res: Response) => {
       .fontSize(10)
       .font('Helvetica-Bold')
       .text('Item', 50, tableTop)
-      .text('Start Date', 150, tableTop)
-      .text('End Date', 225, tableTop)
-      .text('Monthly Rate', 295, tableTop)
-      .text(isEstimation ? 'Qty Rented' : 'Qty Returned', 390, tableTop)
+      .text('Monthly Rate / Price', 225, tableTop)
+      .text('Quantity', 390, tableTop)
       .text('Total Amount', 470, tableTop, { align: 'right', width: rightEdge - 470 })
       .font('Helvetica');
 
@@ -81,21 +79,51 @@ export const generateRentalPDF = (billing: any, res: Response) => {
       .stroke();
 
     // Table Content
-    const rowY = tableTop + 30;
-    const qty = isEstimation ? (billing.Rental?.quantity ?? 0) : (billing.returnedQuantity ?? 0);
-    const startDate = billing.Rental?.startDate ? new Date(billing.Rental.startDate).toLocaleDateString() : 'N/A';
-    const endDate = new Date(billing.dueDate).toLocaleDateString();
+    let rowY = tableTop + 30;
+    
+    if (billing.BillingItems && billing.BillingItems.length > 0) {
+      billing.BillingItems.forEach((bi: any) => {
+        const itemName = bi.Item?.name || 'Unknown Item';
+        doc
+          .text(itemName, 50, rowY)
+          .text(`Rs.${parseFloat(bi.rate).toFixed(2)}`, 225, rowY)
+          .text(`${bi.quantity}`, 390, rowY)
+          .text(`Rs.${parseFloat(bi.total).toFixed(2)}`, 470, rowY, { align: 'right', width: rightEdge - 470 });
+        rowY += 20;
+      });
+    } else {
+      const item = billing.Rental?.Item;
+      const qty = isEstimation ? (billing.Rental?.quantity ?? 0) : (billing.returnedQuantity ?? 0);
+      doc
+        .text(item ? item.name : 'Unknown Item', 50, rowY)
+        .text(item ? `Rs.${parseFloat(item.monthlyRate).toFixed(2)}` : 'Rs.0.00', 225, rowY)
+        .text(`${qty}`, 390, rowY)
+        .text(`Rs.${parseFloat(billing.amount).toFixed(2)}`, 470, rowY, { align: 'right', width: rightEdge - 470 });
+      rowY += 20;
+    }
 
-    doc
-      .text(item ? item.name : 'Unknown Item', 50, rowY)
-      .text(startDate, 150, rowY)
-      .text(endDate, 225, rowY)
-      .text(item ? `Rs.${parseFloat(item.monthlyRate).toFixed(2)}` : 'Rs.0.00', 295, rowY)
-      .text(`${qty}`, 390, rowY)
-      .text(`Rs.${parseFloat(billing.amount).toFixed(2)}`, 470, rowY, { align: 'right', width: rightEdge - 470 });
+    // Damages Section
+    if (billing.BillingDamages && billing.BillingDamages.length > 0) {
+      rowY += 10;
+      doc
+        .fontSize(10)
+        .font('Helvetica-Bold')
+        .fillColor('#ff0000')
+        .text('Damages & Deductions', 50, rowY)
+        .font('Helvetica')
+        .fillColor('#444444');
+      rowY += 15;
+      
+      billing.BillingDamages.forEach((bd: any) => {
+        doc
+          .text(bd.description, 50, rowY)
+          .text(`Rs.${parseFloat(bd.amount).toFixed(2)}`, 470, rowY, { align: 'right', width: rightEdge - 470 });
+        rowY += 15;
+      });
+    }
 
     // Footer
-    const footerY = 400;
+    const footerY = Math.max(rowY + 30, 400);
     doc
       .strokeColor('#aaaaaa')
       .lineWidth(1)
@@ -103,9 +131,28 @@ export const generateRentalPDF = (billing: any, res: Response) => {
       .lineTo(rightEdge, footerY)
       .stroke();
 
+    let finalY = footerY + 15;
+
+    // Detailed Breakdown in Footer if Damages exist
+    if (Number(billing.totalDamages) > 0) {
+      doc.fontSize(9);
+      const subtotal = Number(billing.amount) - Math.max(0, Number(billing.totalDamages) - Number(billing.availableDeposit || 0));
+      doc.text(`Items Subtotal: Rs.${subtotal.toFixed(2)}`, 350, finalY, { align: 'right', width: rightEdge - 350 });
+      finalY += 12;
+      doc.text(`Total Damages: Rs.${parseFloat(billing.totalDamages).toFixed(2)}`, 350, finalY, { align: 'right', width: rightEdge - 350 });
+      finalY += 12;
+      
+      if (billing.rentalId) {
+        doc.text(`Deposit Used: -Rs.${parseFloat(billing.depositUsed).toFixed(2)}`, 350, finalY, { align: 'right', width: rightEdge - 350 });
+        finalY += 12;
+      }
+      finalY += 5;
+    }
+
     doc
       .fontSize(15)
-      .text(`Total Due: Rs.${parseFloat(billing.amount).toFixed(2)}`, 50, footerY + 20, { align: 'right' });
+      .font('Helvetica-Bold')
+      .text(`Total Due: Rs.${parseFloat(billing.amount).toFixed(2)}`, 50, finalY, { align: 'right' });
 
     if (billing.status === 'paid' && billing.paymentDate) {
       doc

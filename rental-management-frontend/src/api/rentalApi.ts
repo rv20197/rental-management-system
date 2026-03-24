@@ -4,11 +4,20 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import type { Item } from "./itemApi";
 import type { Customer } from "./customerApi";
 
+export interface RentalItem {
+  id: number;
+  rentalId: number;
+  itemId: number;
+  quantity: number;
+  returnedQuantity: number;
+  Item?: Item;
+}
+
 export interface Rental {
   id: number;
-  itemId: number;
+  itemId?: number;
   customerId: number;
-  quantity: number;
+  quantity?: number;
   returnedQuantity?: number;
   inventoryUnitIds?: number[];
   startDate: string;
@@ -17,13 +26,15 @@ export interface Rental {
   status: "active" | "completed" | "cancelled";
   createdAt?: string;
   Item?: Item;
+  RentalItems?: RentalItem[];
   Customer?: Customer;
 }
 
 export interface CreateRentalPayload {
-  itemId: number;
+  itemId?: number;
   customerId: number;
-  quantity: number;
+  quantity?: number;
+  items?: { itemId: number; quantity: number }[];
   startDate: string;
   inventoryUnitIds?: number[];
   endDate?: string;
@@ -32,8 +43,10 @@ export interface CreateRentalPayload {
 }
 
 export interface UpdateRentalPayload {
-  status?: "active" | "completed" | "cancelled";
+  status?: "active" | "completed" | "cancelled" | "pending" | "created";
   endDate?: string;
+  items?: { itemId: number; quantity: number }[];
+  depositAmount?: number;
 }
 
 export const rentalApi = createApi({
@@ -51,8 +64,14 @@ export const rentalApi = createApi({
   }),
   tagTypes: ["Rental", "Billing"],
   endpoints: (builder) => ({
-    getRentals: builder.query<Rental[], void>({
-      query: () => "rentals",
+    getRentals: builder.query<Rental[], { customerId?: number; status?: string } | void>({
+      query: (params) => {
+        if (!params) return "rentals";
+        const queryParams = new URLSearchParams();
+        if (params.customerId) queryParams.append("customerId", params.customerId.toString());
+        if (params.status) queryParams.append("status", params.status);
+        return `rentals?${queryParams.toString()}`;
+      },
       providesTags: ["Rental"],
     }),
     getRental: builder.query<Rental, number>({
@@ -83,7 +102,7 @@ export const rentalApi = createApi({
       invalidatesTags: ["Rental"],
     }),
     // delegate to billing endpoint to calculate return bill
-    returnAndBill: builder.mutation<any, { rentalId: number; returnedQuantity: number }>({
+    returnAndBill: builder.mutation<any, { rentalId: number; items: { rentalItemId: number; quantity: number }[] }>({
       query: (body) => ({
         url: "billings/return",
         method: "POST",

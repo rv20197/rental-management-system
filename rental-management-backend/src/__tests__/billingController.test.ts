@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { returnAndBill } from '../controllers/billingController';
-import { Rental, Billing } from '../models';
+import { Rental, Billing, RentalItem, BillingItem } from '../models';
 import { InventoryUnit } from '../models/Item';
 import { calculateMonthsRented } from '../utils/billingUtils';
 
@@ -9,9 +9,15 @@ jest.mock('../models', () => ({
     Rental: {
         findByPk: jest.fn(),
     },
+    RentalItem: {
+        findAll: jest.fn(),
+    },
     Billing: {
         create: jest.fn(),
     },
+    BillingItem: {
+        create: jest.fn(),
+    }
 }));
 
 jest.mock('../models/Item', () => ({
@@ -37,7 +43,10 @@ describe('billingController', () => {
         jsonMock = jest.fn();
         statusMock = jest.fn().mockReturnValue({ json: jsonMock });
         req = {
-            body: { rentalId: 'rental-1', returnedQuantity: 2 },
+            body: { 
+                rentalId: 'rental-1', 
+                items: [{ rentalItemId: 1, quantity: 2 }] 
+            },
         };
         res = {
             status: statusMock,
@@ -63,37 +72,52 @@ describe('billingController', () => {
                 monthlyRate: '100',
                 update: jest.fn(),
             };
-            const mockRental = {
-                id: 'rental-1',
+            const mockRentalItem = {
+                id: 1,
+                itemId: 'item-1',
                 quantity: 5,
-                status: 'active',
-                startDate: new Date(),
-                endDate: new Date(),
+                returnedQuantity: 0,
                 inventoryUnitIds: ['u1', 'u2', 'u3', 'u4', 'u5'],
                 Item: mockItem,
                 update: jest.fn(),
             };
+            const mockRental = {
+                id: 'rental-1',
+                status: 'active',
+                startDate: new Date(),
+                endDate: new Date(),
+                RentalItems: [mockRentalItem],
+                update: jest.fn(),
+            };
+
+            const mockBilling = {
+                id: 'bill-1',
+                update: jest.fn(),
+            };
 
             (Rental.findByPk as jest.Mock).mockResolvedValue(mockRental);
-            (Billing.create as jest.Mock).mockResolvedValue({ id: 'bill-1' });
+            (Billing.create as jest.Mock).mockResolvedValue(mockBilling);
             (calculateMonthsRented as jest.Mock).mockReturnValue(1);
+            (RentalItem.findAll as jest.Mock).mockResolvedValue([mockRentalItem]);
 
             await returnAndBill(req as Request, res as Response);
 
             expect(Billing.create).toHaveBeenCalledWith(expect.objectContaining({
                 rentalId: 'rental-1',
-                amount: 200, // 2 (qty) * 100 (rate) * 1 (months)
-                returnedQuantity: 2,
-                returnedUnitIds: ['u1', 'u2'],
+                amount: 0,
             }));
 
-            expect(mockRental.update).toHaveBeenCalledWith(expect.objectContaining({
-                quantity: 3,
-                status: 'active',
-            }));
+            expect(mockBilling.update).toHaveBeenCalledWith({ amount: 200 }); // 2 (qty) * 100 (rate) * 1 (months)
+
+            expect(mockRentalItem.update).toHaveBeenCalledWith({
+                returnedQuantity: 2,
+            });
 
             expect(mockItem.update).toHaveBeenCalledWith({ quantity: 12 });
-            expect(InventoryUnit.update).toHaveBeenCalled();
+            expect(InventoryUnit.update).toHaveBeenCalledWith(
+                { status: 'available' },
+                { where: { id: ['u1', 'u2'] } }
+            );
             expect(statusMock).toHaveBeenCalledWith(201);
         });
     });

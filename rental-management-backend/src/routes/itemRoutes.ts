@@ -104,6 +104,8 @@ router.get('/:id', authenticate, getItemById);
  *           schema:
  *             type: object
  *             properties:
+ *               name:
+ *                 type: string
  *               status:
  *                 type: string
  *               monthlyRate:
@@ -115,6 +117,41 @@ router.get('/:id', authenticate, getItemById);
  *         description: Item updated
  */
 router.put('/:id', authenticate, authorize('admin'), updateItem);
+
+/**
+ * @swagger
+ * /items/{id}:
+ *   patch:
+ *     summary: Partial update of an item
+ *     tags: [Items]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *               monthlyRate:
+ *                 type: number
+ *               quantity:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Item updated
+ */
+router.patch('/:id', authenticate, authorize('admin'), updateItem);
 
 /**
  * @swagger

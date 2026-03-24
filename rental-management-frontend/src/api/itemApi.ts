@@ -22,6 +22,7 @@ export interface CreateItemPayload {
 }
 
 export interface UpdateItemPayload {
+  name?: string;
   status?: "available" | "rented" | "maintenance";
   monthlyRate?: number;
   quantity?: number;
@@ -59,7 +60,7 @@ export const itemApi = createApi({
     updateItem: builder.mutation<Item, { id: number; data: UpdateItemPayload }>({
       query: ({ id, data }) => ({
         url: `items/${id}`,
-        method: "PUT",
+        method: "PATCH",
         body: data,
       }),
       invalidatesTags: (_, __, { id }) => [{ type: "Item", id }],

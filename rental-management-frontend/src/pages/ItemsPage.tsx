@@ -87,6 +87,7 @@ export default function ItemsPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
+  const [editName, setEditName] = useState("");
   const [editMonthlyRate, setEditMonthlyRate] = useState<number>(0);
   const [editQuantity, setEditQuantity] = useState<number>(1);
   const [editStatus, setEditStatus] = useState<Item["status"]>("available");
@@ -114,7 +115,12 @@ export default function ItemsPage() {
     try {
       await updateItem({ 
         id: editingItem.id, 
-        data: { monthlyRate: editMonthlyRate, quantity: editQuantity, status: editStatus } 
+        data: { 
+          name: editName,
+          monthlyRate: editMonthlyRate, 
+          quantity: editQuantity, 
+          status: editStatus 
+        } 
       }).unwrap();
       setEditOpen(false);
       setEditingItem(null);
@@ -178,6 +184,7 @@ export default function ItemsPage() {
                       onDelete={deleteItem} 
                       onEdit={(it) => { 
                         setEditingItem(it); 
+                        setEditName(it.name || "");
                         setEditMonthlyRate(it.monthlyRate || 0); 
                         setEditQuantity(it.quantity || 1); 
                         setEditStatus(it.status || 'available'); 
@@ -272,6 +279,15 @@ export default function ItemsPage() {
             <DialogTitle>Edit Item</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="editName">Item Name</Label>
+              <Input 
+                id="editName" 
+                value={editName} 
+                onChange={(e) => setEditName(e.target.value)} 
+                required
+              />
+            </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="editMonthly">Monthly Rate (₹)</Label>

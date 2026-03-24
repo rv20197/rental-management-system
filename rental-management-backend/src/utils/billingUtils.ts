@@ -14,17 +14,14 @@
  * @returns Total months (decimal) to charge for the rental duration.
  */
 export const calculateMonthsRented = (startDate: Date, returnDate: Date, dueDate: Date): number => {
-  const startYear = startDate.getFullYear();
-  const startMonth = startDate.getMonth();
-  
-  const dueYear = dueDate.getFullYear();
-  const dueMonth = dueDate.getMonth();
+  if (returnDate < startDate) return 0;
 
-  // Calculate full months from start year/month to due year/month.
-  // This treats any month prior to the due month as a full month.
-  let months = (dueYear - startYear) * 12 + (dueMonth - startMonth);
-  
-  // Calculate the difference in days between return date and due date
+  // Base duration: days between start date and due date
+  const baseTime = dueDate.getTime() - startDate.getTime();
+  const baseDays = baseTime / (1000 * 60 * 60 * 24);
+  const baseMonths = baseDays / 30;
+
+  // Overdue calculation: days between return date and due date
   const diffTime = returnDate.getTime() - dueDate.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
@@ -33,25 +30,12 @@ export const calculateMonthsRented = (startDate: Date, returnDate: Date, dueDate
     overdueCharge = 0;
   } else if (diffDays <= 15) {
     overdueCharge = 0.5;
-  } else {
+  } else if (diffDays > 15) {
     overdueCharge = 1;
   }
+
+  const totalMonths = baseMonths + overdueCharge;
   
-  // Base months (until due date) + overdue charge
-  // Note: This logic assumes that the rental period until due date is already accounted for in `months`.
-  // However, the original logic for "return month" was slightly different.
-  // If the return is BEFORE the due date, diffDays will be negative or zero.
-  // If return is on due date, diffDays = 0, overdueCharge = 0.
-  
-  // Let's refine: 
-  // If returned before or on due date, we should probably still charge for the time used until return.
-  // But the prompt specifically asks about return POST due date.
-  
-  // If returnDate <= dueDate, we should probably use the original logic or similar for the return month.
-  // But wait, the prompt says "if customer return product within 7 days post due date then no need to charge the rent for that period of time".
-  // This implies we are talking about what happens AFTER the due date.
-  
-  const totalMonths = months + overdueCharge;
-  
-  return Math.max(0, totalMonths);
+  // Return rounded to 1 decimal place for consistency with display and accuracy
+  return Math.max(0, Math.round(totalMonths * 10) / 10);
 };

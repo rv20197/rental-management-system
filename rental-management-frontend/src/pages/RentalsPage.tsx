@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   useGetRentalsQuery,
   useReturnAndBillMutation,
@@ -28,8 +28,9 @@ import {
 } from "../components/ui/dialog";
 import { Label } from "../components/ui/label";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
-import { Plus, Search, ChevronLeft, ChevronRight, ReceiptText, Download, CalendarPlus } from "lucide-react";
+import { Plus, Search, ChevronLeft, ChevronRight, ReceiptText, Download, CalendarPlus, Eye, X, Trash2, Pencil } from "lucide-react";
 import api from "../api";
+import { calculateDefaultDeposit } from "../lib/rentalUtils";
 import { calculateMonthsRented } from "../lib/billingUtils";
 
 const downloadFile = async (endpoint: string, fallbackFilename: string) => {
@@ -61,22 +62,25 @@ const downloadFile = async (endpoint: string, fallbackFilename: string) => {
   }
 };
 
-const RentalRow = React.memo(function RentalRow({ rental, onReturn, onExtend }: { rental: any; onReturn: (id: number) => void; onExtend: (id: number, currentEndDate: string) => void }) {
+const RentalRow = React.memo(function RentalRow({ rental, onReturn, onExtend, onView, onEdit }: { rental: any; onReturn: (id: number) => void; onExtend: (id: number, currentEndDate: string) => void; onView: (rental: any) => void; onEdit: (rental: any) => void }) {
   const handleDownloadEstimation = () => {
     downloadFile(`/rentals/${rental.id}/estimation`, `estimation-${rental.id}.pdf`);
   };
 
+  const totalQty = rental.RentalItems && rental.RentalItems.length > 0
+    ? rental.RentalItems.reduce((acc: number, ri: any) => acc + ri.quantity, 0)
+    : rental.quantity;
+
   return (
     <TableRow>
       <TableCell className="font-mono text-xs">{rental.id}</TableCell>
-      <TableCell className="font-medium">{rental.Item?.name ?? rental.itemId}</TableCell>
       <TableCell>
         {rental.Customer
           ? `${rental.Customer.firstName ?? ""} ${rental.Customer.lastName ?? ""}`.trim() || rental.Customer.email
           : rental.customerId}
       </TableCell>
       <TableCell className="whitespace-nowrap">{new Date(rental.startDate).toLocaleDateString()}</TableCell>
-      <TableCell>{rental.quantity}</TableCell>
+      <TableCell>{totalQty}</TableCell>
       <TableCell>{rental.depositAmount != null ? `₹${Number(rental.depositAmount).toFixed(2)}` : "-"}</TableCell>
       <TableCell>
         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -91,6 +95,15 @@ const RentalRow = React.memo(function RentalRow({ rental, onReturn, onExtend }: 
       </TableCell>
       <TableCell>
         <div className="flex gap-2">
+          <Button size="icon-xs" variant="ghost" className="text-blue-600" title="View Details" onClick={() => onView(rental)}>
+            <Eye className="size-3" />
+          </Button>
+          <Button size="icon-xs" variant="ghost" className="text-blue-600" title="Edit Rental" onClick={() => onEdit(rental)}>
+            <Pencil className="size-3" />
+          </Button>
+          <Button size="icon-xs" variant="ghost" className="text-blue-600" title="Download Estimation" onClick={handleDownloadEstimation}>
+            <Download className="size-3" />
+          </Button>
           <Button
             variant="outline"
             size="xs"
@@ -110,9 +123,6 @@ const RentalRow = React.memo(function RentalRow({ rental, onReturn, onExtend }: 
           >
             <ReceiptText className="size-3" />
             Return
-          </Button>
-          <Button size="icon-xs" variant="ghost" className="text-blue-600" title="Download Estimation" onClick={handleDownloadEstimation}>
-            <Download className="size-3" />
           </Button>
         </div>
       </TableCell>
@@ -150,9 +160,10 @@ export default function RentalsPage() {
   const { data: allCustomers = [] } = useGetCustomersQuery();
 
   const [newOpen, setNewOpen] = useState(false);
-  const [newItemId, setNewItemId] = useState<number | "">("");
   const [newCustomerId, setNewCustomerId] = useState<number | "">("");
-  const [newQuantity, setNewQuantity] = useState<number>(1);
+  const [newItems, setNewItems] = useState<{ itemId: number | ""; quantity: number }[]>([
+    { itemId: "", quantity: 1 }
+  ]);
   const [newStartDate, setNewStartDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [newEndDate, setNewEndDate] = useState<string>(
     (() => {
@@ -162,13 +173,62 @@ export default function RentalsPage() {
     })()
   );
   const [newDepositAmount, setNewDepositAmount] = useState<string>("");
+  const [isNewDepositOverridden, setIsNewDepositOverridden] = useState(false);
 
-  const [selectedRentalId, setSelectedRentalId] = useState<number | null>(null);
-  const [returnQty, setReturnQty] = useState<number>(0);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editRentalId, setEditRentalId] = useState<number | null>(null);
+  const [editItems, setEditItems] = useState<{ itemId: number | ""; quantity: number }[]>([]);
+  const [editEndDate, setEditEndDate] = useState<string>("");
+  const [editDepositAmount, setEditDepositAmount] = useState<string>("");
+  const [isEditDepositOverridden, setIsEditDepositOverridden] = useState(false);
 
-  const selectedRental = useMemo(
-    () => allRentals.find((r) => r.id === selectedRentalId) || null,
-    [allRentals, selectedRentalId],
+  // Auto-calculate deposit for new rental
+  useEffect(() => {
+    if (newOpen && !isNewDepositOverridden) {
+      let total = 0;
+      newItems.forEach(item => {
+        if (item.itemId !== "") {
+          const product = allItems.find(it => it.id === Number(item.itemId));
+          if (product) {
+            total += calculateDefaultDeposit(Number(product.monthlyRate), item.quantity);
+          }
+        }
+      });
+      setNewDepositAmount(total > 0 ? total.toString() : "");
+    }
+  }, [newItems, allItems, isNewDepositOverridden, newOpen]);
+
+  // Auto-calculate deposit for edit rental
+  useEffect(() => {
+    if (editOpen && !isEditDepositOverridden) {
+      let total = 0;
+      editItems.forEach(item => {
+        if (item.itemId !== "") {
+          const product = allItems.find(it => it.id === Number(item.itemId));
+          if (product) {
+            total += calculateDefaultDeposit(Number(product.monthlyRate), item.quantity);
+          }
+        }
+      });
+      setEditDepositAmount(total > 0 ? total.toString() : "");
+    }
+  }, [editItems, allItems, isEditDepositOverridden, editOpen]);
+
+  const [selectedRental, setSelectedRental] = useState<any>(null);
+  const [viewOpen, setViewOpen] = useState(false);
+  const [isNewlyCreated, setIsNewlyCreated] = useState(false);
+
+  const handleView = (rental: any) => {
+    setSelectedRental(rental);
+    setViewOpen(true);
+  };
+
+  const [selectedReturnRentalId, setSelectedReturnRentalId] = useState<number | null>(null);
+  const [returnItems, setReturnItems] = useState<{ rentalItemId: number; quantity: number }[]>([]);
+
+  const selectedReturnRental = useMemo(
+    () => allRentals.find((r) => r.id === selectedReturnRentalId) || null,
+    [allRentals, selectedReturnRentalId],
   );
 
   const [extendOpenRentalId, setExtendOpenRentalId] = useState<number | null>(null);
@@ -180,27 +240,33 @@ export default function RentalsPage() {
   );
 
   const allowable = useMemo(() => {
-    if (!selectedRental) return 0;
-    return selectedRental.quantity - (selectedRental.returnedQuantity || 0);
-  }, [selectedRental]);
+    if (!selectedReturnRental) return 0;
+    return selectedReturnRental.quantity - (selectedReturnRental.returnedQuantity || 0);
+  }, [selectedReturnRental]);
 
-  const previewMonths = useMemo(() => {
-    if (!selectedRental) return 0;
-    return calculateMonthsRented(new Date(selectedRental.startDate), new Date());
-  }, [selectedRental]);
-
-  const previewAmount = useMemo(() => {
-    if (!selectedRental || returnQty <= 0) return 0;
-    const monthlyRate = selectedRental.Item?.monthlyRate ? Number(selectedRental.Item.monthlyRate) : 0;
-    return returnQty * monthlyRate * previewMonths;
-  }, [selectedRental, returnQty, previewMonths]);
+  const handleOpenReturn = (rental: any) => {
+    setSelectedReturnRentalId(rental.id);
+    // Initialize with first available item
+    const firstAvailableItem = rental.RentalItems?.find((ri: any) => (ri.quantity - (ri.returnedQuantity || 0)) > 0);
+    if (firstAvailableItem) {
+      setReturnItems([{ 
+        rentalItemId: firstAvailableItem.id, 
+        quantity: firstAvailableItem.quantity - (firstAvailableItem.returnedQuantity || 0) 
+      }]);
+    } else {
+      setReturnItems([]);
+    }
+  };
 
   const handleReturn = async () => {
-    if (!selectedRentalId || returnQty <= 0) return;
+    if (!selectedReturnRentalId || returnItems.length === 0) return;
     try {
-      const result = await returnAndBill({ rentalId: selectedRentalId, returnedQuantity: returnQty }).unwrap();
-      setSelectedRentalId(null);
-      setReturnQty(0);
+      const result = await returnAndBill({ 
+        rentalId: selectedReturnRentalId, 
+        items: returnItems 
+      }).unwrap();
+      setSelectedReturnRentalId(null);
+      setReturnItems([]);
       toast.success("Return processed successfully!");
       if (result.billing?.id) {
         downloadFile(`/billings/${result.billing.id}/download`, `bill-${result.billing.id}.pdf`);
@@ -208,6 +274,24 @@ export default function RentalsPage() {
     } catch (err) {
       toast.error("Failed to process return");
     }
+  };
+
+  const handleAddItem = () => {
+    setNewItems([...newItems, { itemId: "", quantity: 1 }]);
+  };
+
+  const handleRemoveItem = (index: number) => {
+    if (newItems.length > 1) {
+      const updated = [...newItems];
+      updated.splice(index, 1);
+      setNewItems(updated);
+    }
+  };
+
+  const handleItemChange = (index: number, field: string, value: any) => {
+    const updated = [...newItems];
+    updated[index] = { ...updated[index], [field]: value };
+    setNewItems(updated);
   };
 
   const handleExtend = async () => {
@@ -232,28 +316,86 @@ export default function RentalsPage() {
     }
   };
 
+  const handleEdit = (rental: any) => {
+    setEditRentalId(rental.id);
+    setEditItems(rental.RentalItems.map((ri: any) => ({ itemId: ri.itemId, quantity: ri.quantity })));
+    setEditEndDate(new Date(rental.endDate).toISOString().slice(0, 10));
+    setEditDepositAmount(rental.depositAmount.toString());
+    setEditOpen(true);
+    setIsEditDepositOverridden(false);
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editRentalId) return;
+    try {
+      await updateRental({
+        id: editRentalId,
+        data: {
+          items: editItems as any,
+          endDate: editEndDate,
+          depositAmount: editDepositAmount === "" ? undefined : Number(editDepositAmount),
+        }
+      }).unwrap();
+      setEditOpen(false);
+      toast.success("Rental updated successfully");
+    } catch (err) {
+      toast.error("Failed to update rental");
+    }
+  };
+
+  const calculateTotals = (items: any[], startDate: string, endDate: string) => {
+    if (!startDate || !endDate) return { rent: 0, deposit: 0, total: 0 };
+    const months = calculateMonthsRented(new Date(startDate), new Date(endDate));
+    let rent = 0;
+    let deposit = 0;
+    
+    items.forEach(item => {
+      const it = allItems.find(i => i.id === item.itemId);
+      if (it) {
+        const rate = Number(it.monthlyRate);
+        rent += rate * (item.quantity || 0) * months;
+        deposit += calculateDefaultDeposit(rate, item.quantity);
+      }
+    });
+    
+    return { rent, deposit, total: rent + deposit };
+  };
+
+  const newTotals = useMemo(() => calculateTotals(newItems, newStartDate, newEndDate), [newItems, newStartDate, newEndDate, allItems]);
+  
+  const editRentalData = useMemo(() => allRentals.find(r => r.id === editRentalId), [allRentals, editRentalId]);
+  const editTotals = useMemo(() => {
+    if (!editRentalData) return { rent: 0, deposit: 0, total: 0 };
+    return calculateTotals(editItems, editRentalData.startDate, editEndDate);
+  }, [editItems, editRentalData, editEndDate, allItems]);
+
   const handleCreate = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const depositStr = newDepositAmount.trim();
     const parsedDeposit = depositStr === "" ? undefined : Number(depositStr);
-    if (!newItemId || !newCustomerId || newQuantity <= 0) {
-      return toast.warning("Please fill required fields");
+    
+    const validItems = newItems.filter(item => item.itemId !== "" && item.quantity > 0);
+    
+    if (!newCustomerId || validItems.length === 0) {
+      return toast.warning("Please fill required fields and add at least one item");
     }
+    
     try {
       const payload: any = { 
-        itemId: Number(newItemId), 
         customerId: Number(newCustomerId), 
-        quantity: newQuantity, 
+        items: validItems.map(item => ({ itemId: Number(item.itemId), quantity: Number(item.quantity) })),
         startDate: newStartDate,
         endDate: newEndDate 
       };
       if (parsedDeposit != null) payload.depositAmount = parsedDeposit;
+      
       const rental = await createRental(payload).unwrap();
       setNewOpen(false);
-      setNewItemId("");
+      setNewItems([{ itemId: "", quantity: 1 }]);
       setNewCustomerId("");
-      setNewQuantity(1);
       setNewDepositAmount("");
+      setIsNewDepositOverridden(false);
       setNewEndDate((() => {
         const d = new Date();
         d.setDate(d.getDate() + 30);
@@ -261,6 +403,9 @@ export default function RentalsPage() {
       })());
       toast.success("Rental created successfully");
       if (rental.id) {
+        setSelectedRental(rental);
+        setViewOpen(true);
+        setIsNewlyCreated(true);
         downloadFile(`/rentals/${rental.id}/estimation`, `estimation-${rental.id}.pdf`);
       }
     } catch (err) {
@@ -307,7 +452,6 @@ export default function RentalsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[100px]">ID</TableHead>
-                    <TableHead>Item</TableHead>
                     <TableHead>Customer</TableHead>
                     <TableHead>Start Date</TableHead>
                     <TableHead>Qty</TableHead>
@@ -321,12 +465,11 @@ export default function RentalsPage() {
                     <RentalRow
                       key={rental.id}
                       rental={rental}
+                      onView={handleView}
+                      onEdit={handleEdit}
                       onReturn={(id) => {
-                        setSelectedRentalId(id);
                         const r = allRentals.find((x) => x.id === id);
-                        if (!r) return setReturnQty(0);
-                        const remaining = (r.quantity ?? 0) - (r.returnedQuantity || 0);
-                        setReturnQty(Math.max(1, remaining || 0));
+                        if (r) handleOpenReturn(r);
                       }}
                       onExtend={(id, currentEnd) => {
                         setExtendOpenRentalId(id);
@@ -374,52 +517,120 @@ export default function RentalsPage() {
       </Card>
 
       <Dialog
-        open={!!selectedRentalId}
-        onOpenChange={(open) => !open && setSelectedRentalId(null)}
+        open={!!selectedReturnRentalId}
+        onOpenChange={(open) => !open && setSelectedReturnRentalId(null)}
       >
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Process the Return</DialogTitle>
             <DialogDescription>
-              Confirm quantity for <strong>{selectedRental?.Item?.name}</strong> to calculate billing.
+              Select items and quantities being returned.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="qty">Return Quantity</Label>
-              <Input
-                id="qty"
-                type="number"
-                min={1}
-                max={allowable || undefined}
-                value={returnQty}
-                onChange={(e) => setReturnQty(Number(e.target.value))}
-              />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Items to Return</Label>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => {
+                    const firstAvailableItem = selectedReturnRental?.RentalItems?.find((ri: any) => {
+                      const alreadyInList = returnItems.some(item => item.rentalItemId === ri.id);
+                      return !alreadyInList && (ri.quantity - (ri.returnedQuantity || 0)) > 0;
+                    });
+                    if (firstAvailableItem) {
+                      setReturnItems([...returnItems, { 
+                        rentalItemId: firstAvailableItem.id, 
+                        quantity: firstAvailableItem.quantity - (firstAvailableItem.returnedQuantity || 0) 
+                      }]);
+                    } else {
+                      toast.warning("No more items available to return in this rental.");
+                    }
+                  }}
+                >
+                  <Plus className="mr-2 h-4 w-4" /> Add Item
+                </Button>
+              </div>
+
+              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                {returnItems.map((item, index) => {
+                  const rentalItem = selectedReturnRental?.RentalItems?.find((ri: any) => ri.id === item.rentalItemId);
+                  const available = rentalItem ? (rentalItem.quantity - (rentalItem.returnedQuantity || 0)) : 0;
+                  
+                  return (
+                    <div key={index} className="flex gap-3 items-end border p-3 rounded-md relative group">
+                      <div className="flex-1 space-y-2">
+                        <Label>Item</Label>
+                        <select 
+                          className="w-full p-2 border rounded-md bg-background text-sm"
+                          value={item.rentalItemId}
+                          onChange={(e) => {
+                            const newId = Number(e.target.value);
+                            const ri = selectedReturnRental?.RentalItems?.find((x: any) => x.id === newId);
+                            const updated = [...returnItems];
+                            updated[index] = { 
+                              rentalItemId: newId, 
+                              quantity: ri ? (ri.quantity - (ri.returnedQuantity || 0)) : 0 
+                            };
+                            setReturnItems(updated);
+                          }}
+                        >
+                          {selectedReturnRental?.RentalItems?.filter((ri: any) => {
+                            // Only include it if it's NOT already in the list OR if it's the current selection (so it stays in the dropdown)
+                            const isCurrentInList = ri.id === item.rentalItemId;
+                            const alreadyInList = returnItems.some((it, i) => it.rentalItemId === ri.id && i !== index);
+                            const hasRemaining = (ri.quantity - (ri.returnedQuantity || 0)) > 0;
+                            return (isCurrentInList || !alreadyInList) && hasRemaining;
+                          }).sort((a: any, b: any) => a.id - b.id).map((ri: any) => (
+                            <option key={ri.id} value={ri.id}>
+                              {ri.Item?.name} (Rented: {ri.quantity}, Returned: {ri.returnedQuantity || 0})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="w-32 space-y-2">
+                        <Label>Qty to Return</Label>
+                        <Input 
+                          type="number" 
+                          min={1} 
+                          max={available}
+                          value={item.quantity} 
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            const updated = [...returnItems];
+                            updated[index] = { ...updated[index], quantity: val };
+                            setReturnItems(updated);
+                          }}
+                        />
+                      </div>
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="icon" 
+                        className="text-destructive h-9 w-9"
+                        onClick={() => {
+                          const updated = [...returnItems];
+                          updated.splice(index, 1);
+                          setReturnItems(updated);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+                {returnItems.length === 0 && (
+                  <p className="text-sm text-center text-muted-foreground py-4">No items selected for return.</p>
+                )}
+              </div>
             </div>
 
-            {selectedRental && returnQty > 0 && (
-              <div className="rounded-lg bg-muted p-3 space-y-2 border">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-muted-foreground">Estimated Billing:</span>
-                  <span className="font-bold text-lg">₹{previewAmount.toFixed(2)}</span>
-                </div>
-                <div className="text-[10px] text-muted-foreground leading-relaxed">
-                  <p>Billing rules for return month:</p>
-                  <ul className="list-disc list-inside mt-1 grid grid-cols-1 gap-0.5">
-                    <li>Before 5th: 0 charge</li>
-                    <li>5th to 15th: 0.5 months charge</li>
-                    <li>After 15th: 1.0 month charge</li>
-                  </ul>
-                  <p className="mt-1 border-t pt-1">
-                    Calculated for: <span className="font-medium text-foreground">{previewMonths} months</span> total.
-                  </p>
-                </div>
-              </div>
-            )}
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setSelectedRentalId(null)}>Cancel</Button>
-              <Button onClick={handleReturn} disabled={isReturning}>
+              <Button variant="outline" onClick={() => setSelectedReturnRentalId(null)}>Cancel</Button>
+              <Button onClick={handleReturn} disabled={isReturning || returnItems.length === 0}>
                 {isReturning ? 'Processing...' : 'Confirm Return'}
               </Button>
             </DialogFooter>
@@ -460,27 +671,12 @@ export default function RentalsPage() {
       </Dialog>
 
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Create New Rental</DialogTitle>
-            <DialogDescription>Select item and customer to start a rental.</DialogDescription>
+            <DialogDescription>Select items and customer to start a rental.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreate} className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="item">Item</Label>
-              <select 
-                id="item" 
-                className="w-full p-2 border rounded-md bg-background text-sm" 
-                value={newItemId} 
-                onChange={(e) => setNewItemId(e.target.value === "" ? "" : Number(e.target.value))} 
-                required
-              >
-                <option value="">Select an item</option>
-                {allItems.map((it: any) => (
-                  <option key={it.id} value={it.id}>{it.name} (Stock: {it.quantity})</option>
-                ))}
-              </select>
-            </div>
             <div className="space-y-2">
               <Label htmlFor="customer">Customer</Label>
               <select 
@@ -496,20 +692,69 @@ export default function RentalsPage() {
                 ))}
               </select>
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="qty">Quantity</Label>
-                <Input id="qty" type="number" min={1} value={newQuantity} onChange={(e) => setNewQuantity(Number(e.target.value))} />
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Items</Label>
+                <Button type="button" variant="outline" size="xs" onClick={handleAddItem} className="gap-1">
+                  <Plus className="size-3" /> Add Item
+                </Button>
               </div>
+              
+              <div className="space-y-3 max-h-[200px] overflow-y-auto pr-2">
+                {newItems.map((item, index) => (
+                  <div key={index} className="flex gap-2 items-end border p-3 rounded-md bg-muted/30 relative group">
+                    <div className="flex-1 space-y-1.5">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Select Item</Label>
+                      <select 
+                        className="w-full p-2 border rounded-md bg-background text-sm" 
+                        value={item.itemId} 
+                        onChange={(e) => handleItemChange(index, 'itemId', e.target.value === "" ? "" : Number(e.target.value))}
+                        required
+                      >
+                        <option value="">Select an item</option>
+                        {allItems.map((it: any) => (
+                          <option key={it.id} value={it.id}>{it.name} (Stock: {it.quantity})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="w-24 space-y-1.5">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Quantity</Label>
+                      <Input 
+                        type="number" 
+                        min={1} 
+                        value={item.quantity} 
+                        onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))} 
+                        required
+                      />
+                    </div>
+                    {newItems.length > 1 && (
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="icon" 
+                        className="text-destructive h-9 w-9" 
+                        onClick={() => handleRemoveItem(index)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="start">Start Date</Label>
                 <Input id="start" type="date" value={newStartDate} onChange={(e) => setNewStartDate(e.target.value)} />
               </div>
-            </div>
-            <div className="space-y-2">
+              <div className="space-y-2">
                 <Label htmlFor="end">End Date</Label>
                 <Input id="end" type="date" value={newEndDate} onChange={(e) => setNewEndDate(e.target.value)} />
+              </div>
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="deposit">Deposit (₹)</Label>
               <Input
@@ -517,17 +762,274 @@ export default function RentalsPage() {
                 type="number"
                 min={0}
                 step="0.01"
-                placeholder="Leave blank to auto-calculate"
+                placeholder={newTotals.deposit.toFixed(2)}
                 value={newDepositAmount}
-                onChange={(e) => setNewDepositAmount(e.target.value)}
+                onChange={(e) => {
+                  setNewDepositAmount(e.target.value);
+                  setIsNewDepositOverridden(true);
+                }}
               />
-              <p className="text-xs text-muted-foreground">Leave blank to auto-calculate based on item rate.</p>
+              <p className="text-xs text-muted-foreground">Leave blank to use auto-calculated deposit of ₹{newTotals.deposit.toFixed(2)}.</p>
             </div>
+
+            <div className="bg-muted p-3 rounded-md space-y-1">
+              <div className="flex justify-between text-sm">
+                <span>Estimated Rent ({calculateMonthsRented(new Date(newStartDate), new Date(newEndDate)).toFixed(1)} mo)</span>
+                <span>₹{newTotals.rent.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm font-medium">
+                <span>Total Security Deposit</span>
+                <span>₹{newTotals.deposit.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-base font-bold pt-1 border-t">
+                <span>Grand Total (Rent + Deposit)</span>
+                <span>₹{newTotals.total.toFixed(2)}</span>
+              </div>
+            </div>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setNewOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={isCreating}>{isCreating ? 'Creating...' : 'Create Rental'}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Rental #{editRentalId}</DialogTitle>
+            <DialogDescription>Modify items, quantity, or end date for this rental.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUpdate} className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="customer-edit">Customer</Label>
+              <Input 
+                id="customer-edit" 
+                value={editRentalData?.Customer ? `${editRentalData.Customer.firstName} ${editRentalData.Customer.lastName}` : ""} 
+                disabled 
+              />
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Items</Label>
+                <Button type="button" variant="outline" size="xs" onClick={() => setEditItems([...editItems, { itemId: "", quantity: 1 }])} className="gap-1">
+                  <Plus className="size-3" /> Add Item
+                </Button>
+              </div>
+              
+              <div className="space-y-3 max-h-[200px] overflow-y-auto pr-2">
+                {editItems.map((item, index) => (
+                  <div key={index} className="flex gap-2 items-end border p-3 rounded-md bg-muted/30 relative group">
+                    <div className="flex-1 space-y-1.5">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Select Item</Label>
+                      <select 
+                        className="w-full p-2 border rounded-md bg-background text-sm" 
+                        value={item.itemId} 
+                        onChange={(e) => {
+                          const updated = [...editItems];
+                          updated[index] = { ...updated[index], itemId: e.target.value === "" ? "" : Number(e.target.value) };
+                          setEditItems(updated);
+                        }}
+                        required
+                      >
+                        <option value="">Select an item</option>
+                        {allItems.map((it: any) => (
+                          <option key={it.id} value={it.id}>{it.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="w-24 space-y-1.5">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Quantity</Label>
+                      <Input 
+                        type="number" 
+                        min={0} 
+                        value={item.quantity} 
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          if (val === 0) {
+                            if (window.confirm("Setting quantity to 0 will remove this item. Continue?")) {
+                              const updated = [...editItems];
+                              updated.splice(index, 1);
+                              setEditItems(updated);
+                              return;
+                            } else {
+                              return;
+                            }
+                          }
+                          const updated = [...editItems];
+                          updated[index] = { ...updated[index], quantity: val };
+                          setEditItems(updated);
+                        }} 
+                        required
+                      />
+                    </div>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="icon" 
+                      className="text-destructive h-9 w-9" 
+                      onClick={() => {
+                        if (window.confirm("Are you sure you want to remove this item?")) {
+                          const updated = [...editItems];
+                          updated.splice(index, 1);
+                          setEditItems(updated);
+                        }
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="start-edit">Start Date (Read-only)</Label>
+                <Input id="start-edit" type="date" value={editRentalData?.startDate ? new Date(editRentalData.startDate).toISOString().slice(0,10) : ""} disabled />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="end-edit">End Date</Label>
+                <Input id="end-edit" type="date" value={editEndDate} onChange={(e) => setEditEndDate(e.target.value)} />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="deposit-edit">Deposit (₹)</Label>
+              <Input
+                id="deposit-edit"
+                type="number"
+                min={0}
+                step="0.01"
+                placeholder={editTotals.deposit.toFixed(2)}
+                value={editDepositAmount}
+                onChange={(e) => {
+                  setEditDepositAmount(e.target.value);
+                  setIsEditDepositOverridden(true);
+                }}
+              />
+              <p className="text-xs text-muted-foreground">Leave blank to use auto-calculated deposit of ₹{editTotals.deposit.toFixed(2)}.</p>
+            </div>
+
+            <div className="bg-muted p-3 rounded-md space-y-1">
+              <div className="flex justify-between text-sm">
+                <span>Estimated Rent ({calculateMonthsRented(new Date(editRentalData?.startDate || new Date()), new Date(editEndDate)).toFixed(1)} mo)</span>
+                <span>₹{editTotals.rent.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm font-medium">
+                <span>Total Security Deposit</span>
+                <span>₹{editTotals.deposit.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-base font-bold pt-1 border-t">
+                <span>Grand Total (Rent + Deposit)</span>
+                <span>₹{editTotals.total.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={isExtending}>{isExtending ? 'Updating...' : 'Save Changes'}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={viewOpen} onOpenChange={(open) => {
+        setViewOpen(open);
+        if (!open) setIsNewlyCreated(false);
+      }}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Rental Details - Rental #{selectedRental?.id}</DialogTitle>
+            <DialogDescription>Detailed view of the rental and its items.</DialogDescription>
+          </DialogHeader>
+          {selectedRental && (
+            <div className="space-y-6 py-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Customer</p>
+                  <p className="font-semibold">
+                    {selectedRental.Customer 
+                      ? `${selectedRental.Customer.firstName} ${selectedRental.Customer.lastName}`
+                      : "N/A"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Status</p>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                    selectedRental.status === "active" 
+                      ? "bg-blue-100 text-blue-800" 
+                      : selectedRental.status === "completed"
+                        ? "bg-green-100 text-green-800"
+                        : selectedRental.status === "cancelled"
+                          ? "bg-red-100 text-red-800"
+                          : selectedRental.status === "pending" || selectedRental.status === "created"
+                            ? "bg-yellow-100 text-yellow-800"
+                            : "bg-gray-100 text-gray-800"
+                  }`}>
+                    {selectedRental.status}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Start Date</p>
+                  <p className="font-semibold">{new Date(selectedRental.startDate).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">End Date</p>
+                  <p className="font-semibold">{new Date(selectedRental.endDate).toLocaleDateString()}</p>
+                </div>
+                {(selectedRental.status === "created" || selectedRental.status === "pending" || isNewlyCreated) && (
+                  <div>
+                    <p className="text-muted-foreground">Payable Deposit</p>
+                    <p className="font-semibold">₹{Number(selectedRental.depositAmount).toFixed(2)}</p>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h4 className="text-sm font-medium mb-2">Rented Items</h4>
+                <div className="border rounded-md">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Item</TableHead>
+                        <TableHead>Qty</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {selectedRental.RentalItems?.map((ri: any) => (
+                        <TableRow key={ri.id}>
+                          <TableCell>{ri.Item?.name || `Item ${ri.itemId}`}</TableCell>
+                          <TableCell>{ri.quantity}</TableCell>
+                        </TableRow>
+                      ))}
+                      {(!selectedRental.RentalItems || selectedRental.RentalItems.length === 0) && (
+                        <TableRow>
+                          <TableCell>{selectedRental.Item?.name || "N/A"}</TableCell>
+                          <TableCell>{selectedRental.quantity}</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="flex justify-between items-center sm:justify-between">
+            <Button
+              variant="outline"
+              className="text-blue-600 gap-1"
+              onClick={() => {
+                setViewOpen(false);
+                handleEdit(selectedRental);
+              }}
+            >
+              <Pencil className="size-4" /> Edit Rental
+            </Button>
+            <Button variant="outline" onClick={() => setViewOpen(false)}>Close</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

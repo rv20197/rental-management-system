@@ -13,8 +13,9 @@ interface RentalAttributes {
   startDate: Date;
   endDate: Date;
   depositAmount: number;
-  status: 'active' | 'completed' | 'cancelled';
+  status: 'active' | 'completed' | 'cancelled' | 'pending' | 'created';
   Item?: any;
+  RentalItems?: any[];
   Customer?: any;
 }
 
@@ -58,7 +59,7 @@ const Rental = sequelize.define<RentalInstance>('Rental', {
     allowNull: false,
   },
   status: {
-    type: DataTypes.ENUM('active', 'completed', 'cancelled'),
+    type: DataTypes.ENUM('active', 'completed', 'cancelled', 'pending', 'created'),
     defaultValue: 'active', // Defines state of rental
   },
 }, {

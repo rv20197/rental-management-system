@@ -4,21 +4,49 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 import type { Rental } from "./rentalApi";
 
+export interface BillingItem {
+  id: number;
+  billingId: number;
+  itemId: number;
+  quantity: number;
+  rate: number;
+  total: number;
+  Item?: any;
+}
+
+export interface BillingDamage {
+  id: number;
+  billingId: number;
+  description: string;
+  amount: number;
+}
+
 export interface Billing {
   id: number;
-  rentalId: number;
+  rentalId?: number;
+  customerId?: number;
   amount: number;
   dueDate: string;
   status: "pending" | "paid" | "overdue";
   createdAt?: string;
+  totalDamages?: number;
+  depositUsed?: number;
+  availableDeposit?: number;
   Rental?: Rental;
+  Customer?: any;
+  BillingItems?: BillingItem[];
+  BillingDamages?: BillingDamage[];
 }
 
 export interface CreateBillingPayload {
-  rentalId: number;
+  rentalId?: number;
+  customerId?: number;
   amount: number;
   dueDate: string;
   status?: "pending" | "paid" | "overdue";
+  items?: Partial<BillingItem>[];
+  damages?: Partial<BillingDamage>[];
+  availableDeposit?: number;
 }
 
 export interface ReturnBillingPayload {

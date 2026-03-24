@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Item, InventoryUnit } from '../models';
+import { Op } from 'sequelize';
 
 /**
  * Returns all Items globally
@@ -55,8 +56,27 @@ export const getItemById = async (req: Request, res: Response) => {
  */
 export const updateItem = async (req: Request, res: Response) => {
   try {
-    const item = await Item.findByPk(req.params.id as string);
+    const { name, quantity } = req.body;
+    const item: any = await Item.findByPk(req.params.id as string);
     if (!item) return res.status(404).json({ message: 'Item not found' });
+
+    // Validate that the new name is not empty and not a duplicate
+    if (name !== undefined) {
+      if (!name || name.trim() === '') {
+        return res.status(400).json({ message: 'Item name cannot be empty' });
+      }
+      
+      const existingItem = await Item.findOne({
+        where: {
+          name,
+          id: { [Op.ne]: item.id }
+        }
+      });
+      
+      if (existingItem) {
+        return res.status(400).json({ message: 'An item with this name already exists' });
+      }
+    }
 
     const oldQuantity = item.quantity || 0;
 

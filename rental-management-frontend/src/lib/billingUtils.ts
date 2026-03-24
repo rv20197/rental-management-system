@@ -3,27 +3,9 @@
  * Matches backend logic.
  */
 export const calculateMonthsRented = (startDate: Date, returnDate: Date): number => {
-  const startYear = startDate.getFullYear();
-  const startMonth = startDate.getMonth();
-  
-  const returnYear = returnDate.getFullYear();
-  const returnMonth = returnDate.getMonth();
-  const returnDay = returnDate.getDate();
-
-  // Calculate full months from start year/month to return year/month.
-  let months = (returnYear - startYear) * 12 + (returnMonth - startMonth);
-  
-  // Rule for the return month
-  let returnMonthCharge = 0;
-  if (returnDay < 5) {
-    returnMonthCharge = 0;
-  } else if (returnDay <= 15) {
-    returnMonthCharge = 0.5;
-  } else {
-    returnMonthCharge = 1;
-  }
-  
-  const totalMonths = months + returnMonthCharge;
-  
-  return Math.max(0, totalMonths);
+  if (returnDate < startDate) return 0;
+  const diffTime = returnDate.getTime() - startDate.getTime();
+  const diffDays = diffTime / (1000 * 60 * 60 * 24);
+  const months = diffDays / 30;
+  return Math.max(0, Math.round(months * 10) / 10);
 };

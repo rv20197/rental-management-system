@@ -7,19 +7,26 @@ import sequelize from '../config/database';
 interface BillingAttributes {
   id: number;
   rentalId?: number;
+  customerId?: number;
   amount: number;
   dueDate: Date | string;
   status: 'pending' | 'paid' | 'overdue';
   paymentDate?: Date;
   returnedQuantity?: number;
   returnedUnitIds?: number[];
+  totalDamages?: number;
+  depositUsed?: number;
+  availableDeposit?: number;
   Rental?: any;
+  Customer?: any;
+  BillingItems?: any[];
+  BillingDamages?: any[];
 }
 
 /**
  * Attributes used to generate a Bill
  */
-interface BillingCreationAttributes extends Optional<BillingAttributes, 'id' | 'status' | 'paymentDate' | 'returnedQuantity' | 'returnedUnitIds' | 'Rental'> {}
+interface BillingCreationAttributes extends Optional<BillingAttributes, 'id' | 'status' | 'paymentDate' | 'returnedQuantity' | 'returnedUnitIds' | 'Rental' | 'Customer' | 'BillingItems' | 'customerId' | 'totalDamages' | 'depositUsed' | 'availableDeposit' | 'BillingDamages'> {}
 
 /**
  * Billing Model
@@ -34,6 +41,10 @@ const Billing = sequelize.define<BillingInstance>('Billing', {
     primaryKey: true,
   },
   rentalId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
+  customerId: {
     type: DataTypes.INTEGER,
     allowNull: true,
   },
@@ -60,6 +71,21 @@ const Billing = sequelize.define<BillingInstance>('Billing', {
   returnedUnitIds: {
     type: DataTypes.JSON,
     allowNull: true,
+  },
+  totalDamages: {
+    type: DataTypes.DECIMAL,
+    allowNull: true,
+    defaultValue: 0,
+  },
+  depositUsed: {
+    type: DataTypes.DECIMAL,
+    allowNull: true,
+    defaultValue: 0,
+  },
+  availableDeposit: {
+    type: DataTypes.DECIMAL,
+    allowNull: true,
+    defaultValue: 0,
   },
 }, {
   timestamps: true,
