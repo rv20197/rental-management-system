@@ -50,4 +50,23 @@ describe('Auth Integration Tests', () => {
     expect(res.status).toBe(401);
     expect(res.body.message).toBe('Invalid credentials');
   });
+
+  test('POST /api/auth/forgot-password - success', async () => {
+    const res = await request(app)
+      .post('/api/auth/forgot-password')
+      .send({ email: testUser.email });
+    
+    expect(res.status).toBe(200);
+    expect(res.body.message).toContain('password reset link has been sent');
+  });
+
+  test('POST /api/auth/forgot-password - user not found', async () => {
+    const res = await request(app)
+      .post('/api/auth/forgot-password')
+      .send({ email: 'nonexistent@example.com' });
+    
+    // We expect 200 for security reasons as per controller logic
+    expect(res.status).toBe(200);
+    expect(res.body.message).toContain('password reset link has been sent');
+  });
 });

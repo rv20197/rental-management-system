@@ -4,6 +4,8 @@ import { getSessionToken } from "./lib/browser";
 
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const SignupPage = lazy(() => import("./pages/SignupPage"));
+const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const RentalsPage = lazy(() => import("./pages/RentalsPage"));
 const CustomersPage = lazy(() => import("./pages/CustomersPage"));
@@ -35,6 +37,14 @@ function App() {
           <Route
             path="/signup"
             element={<PublicRoute><SignupPage /></PublicRoute>}
+          />
+          <Route
+            path="/forgot-password"
+            element={<PublicRoute><ForgotPasswordPage /></PublicRoute>}
+          />
+          <Route
+            path="/reset-password/:token"
+            element={<PublicRoute><ResetPasswordPage /></PublicRoute>}
           />
           <Route
             path="/dashboard"

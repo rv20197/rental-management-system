@@ -10,6 +10,8 @@ interface UserAttributes {
   email: string;
   password?: string;
   role: 'admin' | 'manager';
+  resetPasswordToken?: string;
+  resetPasswordExpires?: Date;
 }
 
 /**
@@ -48,6 +50,14 @@ const User = sequelize.define<UserInstance>('User', {
   role: {
     type: DataTypes.ENUM('admin', 'manager'),
     defaultValue: 'manager', // Default to manager if unspecified
+  },
+  resetPasswordToken: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  resetPasswordExpires: {
+    type: DataTypes.DATE,
+    allowNull: true,
   },
 }, {
   timestamps: true, // Provides createdAt and updatedAt

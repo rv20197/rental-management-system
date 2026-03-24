@@ -1,36 +1,31 @@
 import { useState, useMemo } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { useLoginMutation } from "../api/authApi";
+import { useForgotPasswordMutation } from "../api/authApi";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Card } from "../components/ui/card";
 import { Alert } from "../components/ui/alert";
-import { setSessionToken } from "../lib/browser";
 
-export default function LoginPage() {
+export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [login, { isLoading }] = useLoginMutation();
-  const navigate = useNavigate();
+  const [forgotPassword, { isLoading, isSuccess }] = useForgotPasswordMutation();
   const [error, setError] = useState<string | null>(null);
 
   const isFormValid = useMemo(
-    () => email && password && !isLoading,
-    [email, password, isLoading]
+    () => email && !isLoading,
+    [email, isLoading]
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     try {
-      const response = await login({ email, password }).unwrap();
-      setSessionToken(response.token);
-      toast.success("Welcome back!");
-      navigate("/dashboard");
+      const response = await forgotPassword({ email }).unwrap();
+      toast.success(response.message || "Password reset link sent to your email.");
     } catch (err: any) {
-      const message = err?.data?.message || "Login failed";
+      const message = err?.data?.message || "Failed to send reset link";
       setError(message);
       toast.error(message);
     }
@@ -43,10 +38,10 @@ export default function LoginPage() {
           {/* Header */}
           <div className="mb-6 text-center sm:mb-8">
             <h1 className="mb-2 text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">
-              Welcome Back
+              Forgot Password
             </h1>
             <p className="text-slate-600 dark:text-slate-400">
-              Sign in to your rental management account
+              Enter your registered email address to receive a reset link
             </p>
           </div>
 
@@ -54,6 +49,13 @@ export default function LoginPage() {
           {error && (
             <Alert variant="error" className="mb-4">
               <p className="text-sm font-medium">{error}</p>
+            </Alert>
+          )}
+
+          {/* Success Message */}
+          {isSuccess && (
+            <Alert variant="default" className="mb-4 bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-900/30 dark:text-green-400">
+              <p className="text-sm font-medium">Password reset link sent to your email.</p>
             </Alert>
           )}
 
@@ -75,56 +77,20 @@ export default function LoginPage() {
               />
             </div>
 
-            {/* Password */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <Label htmlFor="password" className="text-sm font-semibold">
-                  Password
-                </Label>
-                <Link
-                  to="/forgot-password"
-                  className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-              <Input
-                id="password"
-                type="password"
-                placeholder="********"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="mt-1"
-              />
-            </div>
-
             {/* Submit Button */}
             <Button type="submit" className="w-full mt-6" disabled={!isFormValid}>
-              {isLoading ? "Signing in..." : "Sign In"}
+              {isLoading ? "Sending..." : "Send Reset Link"}
             </Button>
           </form>
 
-          {/* Divider */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-300 dark:border-slate-600"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-card text-muted-foreground">
-                Don't have an account?
-              </span>
-            </div>
-          </div>
-
-          {/* Signup Link */}
-          <div className="text-center">
+          {/* Back to Login */}
+          <div className="mt-6 text-center">
             <p className="text-slate-600 dark:text-slate-400">
               <Link
-                to="/signup"
+                to="/login"
                 className="font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
               >
-                Sign up here
+                Back to Login
               </Link>
             </p>
           </div>
