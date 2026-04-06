@@ -24,7 +24,7 @@ if (!process.env.DATABASE_URL) {
 }
 
 // enable SSL when requested (e.g. Neon, Heroku) or in production
-if (dialect === 'postgres' && (process.env.DB_SSL === 'true' || process.env.NODE_ENV === 'production')) {
+if (dialect === 'postgres' && (process.env.DB_SSL === 'true' || process.env.NODE_ENV === 'production'|| !!process.env.DATABASE_URL)) {
   sequelizeOptions.dialectOptions = {
     ssl: {
       require: true,
