@@ -3,6 +3,7 @@ import { returnAndBill } from '../controllers/billingController';
 import { Rental, Billing, RentalItem, BillingItem } from '../models';
 import { InventoryUnit } from '../models/Item';
 import { calculateMonthsRented } from '../utils/billingUtils';
+import { describe, test, expect, jest,beforeEach } from '@jest/globals';
 
 // Mock all dependencies
 jest.mock('../models', () => ({

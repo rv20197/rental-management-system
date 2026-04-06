@@ -1,12 +1,13 @@
 process.env.NODE_ENV = 'test';
 process.env.DB_DIALECT = 'postgres';
 process.env.DB_NAME = process.env.DB_NAME || 'rental_management_test';
-process.env.DB_USER = process.env.DB_USER || 'user';
-process.env.DB_PASSWORD = process.env.DB_PASSWORD || 'pass';
+process.env.DB_USER = process.env.DB_USER || 'postgres';
+process.env.DB_PASSWORD = process.env.DB_PASSWORD || 'postgres';
 process.env.DB_HOST = process.env.DB_HOST || 'localhost';
 
 import { sequelize } from '../models';
 import { ensureDatabaseExists } from '../utils/dbSetup';
+import { beforeAll, afterAll, jest } from '@jest/globals';
 
 jest.setTimeout(30000);
 

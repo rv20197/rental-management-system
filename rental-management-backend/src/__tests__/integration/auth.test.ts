@@ -1,5 +1,6 @@
 import request from 'supertest';
 import app from '../../app';
+import { describe, test, expect, beforeAll } from '@jest/globals';
 
 describe('Auth Integration Tests', () => {
   const testUser = {

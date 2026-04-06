@@ -1,6 +1,7 @@
 import request from 'supertest';
 import app from '../../app';
 import { Customer } from '../../models';
+import { describe, test, expect, beforeAll } from '@jest/globals';
 
 describe('Customer Integration Tests', () => {
     let token: string;
