@@ -2,14 +2,8 @@ import { Sequelize } from 'sequelize';
 import dotenv from 'dotenv';
 import logger from '../utils/logger';
 
-// Load environment variables from .env file
 dotenv.config();
 
-/**
- * Initialize Sequelize with connection details.
- * Connects to the configured database (Postgres by default) using environment variables.
- */
-// Standardized on Postgres
 const dialect = 'postgres';
 
 const sequelizeOptions: any = {
@@ -23,24 +17,43 @@ if (!process.env.DATABASE_URL) {
   sequelizeOptions.port = parseInt(process.env.DB_PORT || '5432', 10);
 }
 
-// enable SSL when requested (e.g. Neon, Heroku) or in production
-if (dialect === 'postgres' && (process.env.DB_SSL === 'true' || process.env.NODE_ENV === 'production'|| !!process.env.DATABASE_URL)) {
+// Enable SSL for local/individual-param connections
+if (
+  dialect === 'postgres' &&
+  !process.env.DATABASE_URL &&
+  (process.env.DB_SSL === 'true' || process.env.NODE_ENV === 'production')
+) {
   sequelizeOptions.dialectOptions = {
     ssl: {
       require: true,
-      // Neon uses self-signed certs; avoid reject unless you provide CA
       rejectUnauthorized: false,
     },
   };
 }
 
-const sequelize = process.env.DATABASE_URL
-  ? new Sequelize(process.env.DATABASE_URL, sequelizeOptions)
-  : new Sequelize(
-    process.env.DB_NAME as string,
-    process.env.DB_USER as string,
-    process.env.DB_PASSWORD as string,
-    sequelizeOptions
-  );
+// When using DATABASE_URL, force SSL by appending it to the URL directly
+// (Sequelize ignores dialectOptions when parsing a connection string)
+function buildDatabaseUrl(url: string): string {
+  const parsed = new URL(url);
+  parsed.searchParams.set('sslmode', 'require');
+  return parsed.toString();
+}
 
-export default sequelize;
+const sequelize = process.env.DATABASE_URL
+  ? new Sequelize(buildDatabaseUrl(process.env.DATABASE_URL), {
+      ...sequelizeOptions,
+      dialectOptions: {
+        ssl: {
+          require: true,
+          rejectUnauthorized: false,
+        },
+      },
+    })
+  : new Sequelize(
+      process.env.DB_NAME as string,
+      process.env.DB_USER as string,
+      process.env.DB_PASSWORD as string,
+      sequelizeOptions
+    );
+
+export default sequelize
