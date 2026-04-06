@@ -17,6 +17,7 @@ export const ensureDatabaseExists = async () => {
   const user = process.env.DB_USER || 'postgres';
   const password = process.env.DB_PASSWORD;
   const database = process.env.DB_NAME || 'rental_management';
+  const ssl = process.env.DB_SSL === 'true' || false;
 
   // skip creation step when a managed service is used (Neon/Heroku etc.)
   if (process.env.SKIP_DB_SETUP === 'true') {
@@ -32,6 +33,7 @@ export const ensureDatabaseExists = async () => {
       port,
       user,
       password,
+      ssl,
       database: 'postgres', // connect to default maintenance db
     });
     await client.connect();

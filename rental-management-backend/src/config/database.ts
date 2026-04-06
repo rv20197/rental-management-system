@@ -4,7 +4,7 @@ import logger from '../utils/logger';
 
 dotenv.config();
 
-const dialect = 'postgres';
+const dialect = process.env.DB_DIALECT || 'postgres';
 
 const sequelizeOptions: any = {
   dialect,
