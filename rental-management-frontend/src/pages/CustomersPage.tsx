@@ -26,6 +26,8 @@ import {
   TableRow,
 } from "../components/ui/table";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
+import { SortableTableHead } from "../components/ui/sortable-table-head";
+import { compareValues, getNextSortDirection, type SortDirection } from "../lib/tableUtils";
 import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight } from "lucide-react";
 
 // memoized row to avoid re-rendering unchanged rows
@@ -57,6 +59,8 @@ const CustomerRow = React.memo(function CustomerRow({ customer, onDelete, onEdit
 
 export default function CustomersPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortKey, setSortKey] = useState<"id" | "name" | "email" | "phone">("id");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const pageSize = 10;
   const [page, setPage] = useState(0);
 
@@ -69,11 +73,28 @@ export default function CustomersPage() {
     );
   }, [allCustomers, searchTerm]);
 
-  const paginatedCustomers = useMemo(() => {
-    return filteredCustomers.slice(page * pageSize, (page + 1) * pageSize);
-  }, [filteredCustomers, page, pageSize]);
+  const sortedCustomers = useMemo(() => {
+    return [...filteredCustomers].sort((left, right) => {
+      switch (sortKey) {
+        case "id":
+          return compareValues(left.id, right.id, sortDirection);
+        case "name":
+          return compareValues(`${left.firstName} ${left.lastName}`, `${right.firstName} ${right.lastName}`, sortDirection);
+        case "email":
+          return compareValues(left.email, right.email, sortDirection);
+        case "phone":
+          return compareValues(left.phone || "", right.phone || "", sortDirection);
+        default:
+          return 0;
+      }
+    });
+  }, [filteredCustomers, sortDirection, sortKey]);
 
-  const totalPages = Math.ceil(filteredCustomers.length / pageSize);
+  const paginatedCustomers = useMemo(() => {
+    return sortedCustomers.slice(page * pageSize, (page + 1) * pageSize);
+  }, [sortedCustomers, page, pageSize]);
+
+  const totalPages = Math.ceil(sortedCustomers.length / pageSize);
 
   const [createCustomer] = useCreateCustomerMutation();
   const [deleteCustomer] = useDeleteCustomerMutation();
@@ -148,17 +169,29 @@ export default function CustomersPage() {
         <CardContent>
           {isLoading ? (
             <div className="py-10 text-center text-muted-foreground">Loading customers...</div>
-          ) : filteredCustomers.length === 0 ? (
+          ) : sortedCustomers.length === 0 ? (
             <div className="py-10 text-center text-muted-foreground">No customers found.</div>
           ) : (
             <div className="overflow-hidden rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[100px]">ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Phone</TableHead>
+                    <SortableTableHead className="w-[100px]" label="ID" isActive={sortKey === "id"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "id"));
+                      setSortKey("id");
+                    }} />
+                    <SortableTableHead label="Name" isActive={sortKey === "name"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "name"));
+                      setSortKey("name");
+                    }} />
+                    <SortableTableHead label="Email" isActive={sortKey === "email"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "email"));
+                      setSortKey("email");
+                    }} />
+                    <SortableTableHead label="Phone" isActive={sortKey === "phone"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "phone"));
+                      setSortKey("phone");
+                    }} />
                     <TableHead className="w-[100px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

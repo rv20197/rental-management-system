@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useGetBillingsQuery } from "../api/billingApi";
 import { useGetRentalsQuery } from "../api/rentalApi";
 import { useGetCustomersQuery } from "../api/customerApi";
@@ -7,14 +7,18 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "../components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { SortableTableHead } from "../components/ui/sortable-table-head";
 import { Key, Users, Package, ReceiptText, TrendingUp } from "lucide-react";
+import { compareValues, getNextSortDirection, type SortDirection } from "../lib/tableUtils";
 
 export default function Dashboard() {
+  const [billingStatusFilter, setBillingStatusFilter] = useState<"all" | "pending" | "paid" | "overdue">("all");
+  const [billingSortKey, setBillingSortKey] = useState<"rentalId" | "amount" | "status">("rentalId");
+  const [billingSortDirection, setBillingSortDirection] = useState<SortDirection>("asc");
   const { data: billings = [], isLoading: isBillingsLoading } = useGetBillingsQuery();
   const { data: rentals = [] } = useGetRentalsQuery();
   const { data: customers = [] } = useGetCustomersQuery();
@@ -55,6 +59,25 @@ export default function Dashboard() {
     billings.filter(b => b.status === "paid").reduce((acc, b) => acc + Number(b.amount), 0)
   , [billings]);
 
+  const filteredRecentBillings = useMemo(() => {
+    return billings.filter((bill) => billingStatusFilter === "all" || bill.status === billingStatusFilter);
+  }, [billings, billingStatusFilter]);
+
+  const sortedRecentBillings = useMemo(() => {
+    return [...filteredRecentBillings].sort((left, right) => {
+      switch (billingSortKey) {
+        case "rentalId":
+          return compareValues(left.rentalId ?? 0, right.rentalId ?? 0, billingSortDirection);
+        case "amount":
+          return compareValues(Number(left.amount), Number(right.amount), billingSortDirection);
+        case "status":
+          return compareValues(left.status, right.status, billingSortDirection);
+        default:
+          return 0;
+      }
+    }).slice(0, 5);
+  }, [billingSortDirection, billingSortKey, filteredRecentBillings]);
+
   return (
     <div className="space-y-6 p-4 sm:p-6 lg:space-y-8 lg:p-8">
       <div>
@@ -84,25 +107,46 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:gap-8">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Recent Billings</CardTitle>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle>Recent Billings</CardTitle>
+              <select
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                value={billingStatusFilter}
+                onChange={(e) => setBillingStatusFilter(e.target.value as "all" | "pending" | "paid" | "overdue")}
+              >
+                <option value="all">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="paid">Paid</option>
+                <option value="overdue">Overdue</option>
+              </select>
+            </div>
           </CardHeader>
           <CardContent>
             {isBillingsLoading ? (
               <p className="text-sm text-muted-foreground">Loading bills...</p>
-            ) : billings.length === 0 ? (
+            ) : sortedRecentBillings.length === 0 ? (
               <p className="text-sm text-muted-foreground">No bills yet.</p>
             ) : (
               <div className="overflow-hidden rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Rental ID</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Status</TableHead>
+                      <SortableTableHead label="Rental ID" isActive={billingSortKey === "rentalId"} direction={billingSortDirection} onClick={() => {
+                        setBillingSortDirection(getNextSortDirection(billingSortKey, billingSortDirection, "rentalId"));
+                        setBillingSortKey("rentalId");
+                      }} />
+                      <SortableTableHead label="Amount" isActive={billingSortKey === "amount"} direction={billingSortDirection} onClick={() => {
+                        setBillingSortDirection(getNextSortDirection(billingSortKey, billingSortDirection, "amount"));
+                        setBillingSortKey("amount");
+                      }} />
+                      <SortableTableHead label="Status" isActive={billingSortKey === "status"} direction={billingSortDirection} onClick={() => {
+                        setBillingSortDirection(getNextSortDirection(billingSortKey, billingSortDirection, "status"));
+                        setBillingSortKey("status");
+                      }} />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {billings.slice(0, 5).map((bill) => (
+                    {sortedRecentBillings.map((bill) => (
                       <TableRow key={bill.id}>
                         <TableCell className="font-mono text-xs">{bill.rentalId}</TableCell>
                         <TableCell className="font-semibold">₹{Number(bill.amount)?.toFixed(2)}</TableCell>

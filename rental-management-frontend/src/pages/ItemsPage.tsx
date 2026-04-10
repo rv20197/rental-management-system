@@ -26,6 +26,8 @@ import {
   DialogFooter 
 } from "../components/ui/dialog";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
+import { SortableTableHead } from "../components/ui/sortable-table-head";
+import { compareValues, getNextSortDirection, type SortDirection } from "../lib/tableUtils";
 import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight } from "lucide-react";
 
 const ItemRow = React.memo(function ItemRow({ item, onDelete, onEdit }: { item: Item; onDelete: (id: number) => void; onEdit: (item: Item) => void }) {
@@ -62,23 +64,48 @@ const ItemRow = React.memo(function ItemRow({ item, onDelete, onEdit }: { item: 
 
 export default function ItemsPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | Item["status"]>("all");
+  const [sortKey, setSortKey] = useState<"id" | "name" | "monthlyRate" | "quantity" | "status">("id");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const pageSize = 10;
   const [page, setPage] = useState(0);
 
-  let { data: allItems = [], isLoading } = useGetItemsQuery();
+  const { data: allItems = [], isLoading } = useGetItemsQuery();
 
   const filteredItems = useMemo(() => {
-    return allItems.filter(item => 
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.category?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [allItems, searchTerm]);
+    return allItems.filter((item) => {
+      const matchesSearch =
+        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.category?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [allItems, searchTerm, statusFilter]);
+
+  const sortedItems = useMemo(() => {
+    return [...filteredItems].sort((left, right) => {
+      switch (sortKey) {
+        case "id":
+          return compareValues(left.id, right.id, sortDirection);
+        case "name":
+          return compareValues(left.name, right.name, sortDirection);
+        case "monthlyRate":
+          return compareValues(Number(left.monthlyRate), Number(right.monthlyRate), sortDirection);
+        case "quantity":
+          return compareValues(left.quantity, right.quantity, sortDirection);
+        case "status":
+          return compareValues(left.status, right.status, sortDirection);
+        default:
+          return 0;
+      }
+    });
+  }, [filteredItems, sortDirection, sortKey]);
 
   const paginatedItems = useMemo(() => {
-    return filteredItems.slice(page * pageSize, (page + 1) * pageSize);
-  }, [filteredItems, page, pageSize]);
+    return sortedItems.slice(page * pageSize, (page + 1) * pageSize);
+  }, [sortedItems, page, pageSize]);
 
-  const totalPages = Math.ceil(filteredItems.length / pageSize);
+  const totalPages = Math.ceil(sortedItems.length / pageSize);
 
   const [createItem] = useCreateItemMutation();
   const [deleteItem] = useDeleteItemMutation();
@@ -145,34 +172,64 @@ export default function ItemsPage() {
 
       <Card>
         <CardHeader className="pb-3">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search items..."
-              className="pl-9"
-              value={searchTerm}
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search items..."
+                className="pl-9"
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setPage(0);
+                }}
+              />
+            </div>
+            <select
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              value={statusFilter}
               onChange={(e) => {
-                setSearchTerm(e.target.value);
+                setStatusFilter(e.target.value as "all" | Item["status"]);
                 setPage(0);
               }}
-            />
+            >
+              <option value="all">All Statuses</option>
+              <option value="available">Available</option>
+              <option value="rented">Rented</option>
+              <option value="maintenance">Maintenance</option>
+            </select>
           </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="py-10 text-center text-muted-foreground">Loading items...</div>
-          ) : filteredItems.length === 0 ? (
+          ) : sortedItems.length === 0 ? (
             <div className="py-10 text-center text-muted-foreground">No items found.</div>
           ) : (
             <div className="overflow-hidden rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[100px]">ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Monthly Rate</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Status</TableHead>
+                    <SortableTableHead className="w-[100px]" label="ID" isActive={sortKey === "id"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "id"));
+                      setSortKey("id");
+                    }} />
+                    <SortableTableHead label="Name" isActive={sortKey === "name"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "name"));
+                      setSortKey("name");
+                    }} />
+                    <SortableTableHead label="Monthly Rate" isActive={sortKey === "monthlyRate"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "monthlyRate"));
+                      setSortKey("monthlyRate");
+                    }} />
+                    <SortableTableHead label="Quantity" isActive={sortKey === "quantity"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "quantity"));
+                      setSortKey("quantity");
+                    }} />
+                    <SortableTableHead label="Status" isActive={sortKey === "status"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "status"));
+                      setSortKey("status");
+                    }} />
                     <TableHead className="w-[100px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

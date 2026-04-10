@@ -1,7 +1,8 @@
 import {
   Rental as RentalModel,
   Customer as CustomerModel,
-  RentalItem as RentalItemModel
+  RentalItem as RentalItemModel,
+  Billing as BillingModel,
 } from '../models';
 import { Item, InventoryUnit } from '../models/Item';
 import sequelize from '../config/database';
@@ -20,6 +21,7 @@ export const RentalService = {
       where,
       include: [
         { model: RentalItemModel, include: [Item] },
+        { model: BillingModel },
         Item,
         CustomerModel
       ]
@@ -50,6 +52,10 @@ export const RentalService = {
       const transportCost = Number(rentalData.transportCost || 0);
       const labourCost = Number(rentalData.labourCost || 0);
       const totalAmount = baseAmount + transportCost + labourCost;
+      const outstandingAmount = (rentalData.Billings || []).reduce((sum: number, billing: any) => {
+        if (billing.status === 'paid') return sum;
+        return sum + Number(billing.amount || 0);
+      }, 0);
 
       return {
         ...rentalData,
@@ -58,6 +64,7 @@ export const RentalService = {
         labourCost,
         depositAmount: Number(rentalData.depositAmount || 0),
         totalAmount,
+        outstandingAmount,
         outstandingQty: totalQuantity - totalReturnedQuantity
       };
     });
@@ -179,7 +186,7 @@ export const RentalService = {
 
   async getRentalById(id: string) {
     const rental = await RentalModel.findByPk(id, {
-      include: [{ model: RentalItemModel, include: [Item] }, Item, CustomerModel]
+      include: [{ model: RentalItemModel, include: [Item] }, { model: BillingModel }, Item, CustomerModel]
     });
     if (!rental) return null;
 
@@ -200,6 +207,10 @@ export const RentalService = {
     const transportCost = Number(rentalData.transportCost || 0);
     const labourCost = Number(rentalData.labourCost || 0);
     const totalAmount = baseAmount + transportCost + labourCost;
+    const outstandingAmount = (rentalData.Billings || []).reduce((sum: number, billing: any) => {
+      if (billing.status === 'paid') return sum;
+      return sum + Number(billing.amount || 0);
+    }, 0);
 
     return {
       ...rentalData,
@@ -207,7 +218,8 @@ export const RentalService = {
       transportCost,
       labourCost,
       depositAmount: Number(rentalData.depositAmount || 0),
-      totalAmount
+      totalAmount,
+      outstandingAmount
     };
   },
 

@@ -30,9 +30,11 @@ import {
   TableRow,
 } from "../components/ui/table";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
+import { SortableTableHead } from "../components/ui/sortable-table-head";
 import { Plus, Search, ChevronLeft, ChevronRight, CheckCircle2, Trash2, Download, Eye, AlertTriangle } from "lucide-react";
 import CostBreakdown from "../components/CostBreakdown";
 import api from "../api";
+import { compareValues, getNextSortDirection, type SortDirection } from "../lib/tableUtils";
 
 const BillingRow = React.memo(function BillingRow({ billing, onPay, onView }: { billing: any; onPay: (id: number) => void; onView: (billing: any) => void }) {
   const handleDownload = async () => {
@@ -114,6 +116,12 @@ const BillingRow = React.memo(function BillingRow({ billing, onPay, onView }: { 
 
 export default function BillingsPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "paid" | "overdue">("all");
+  const [billingIdFilter, setBillingIdFilter] = useState("");
+  const [rentalIdFilter, setRentalIdFilter] = useState("");
+  const [customerNameFilter, setCustomerNameFilter] = useState("");
+  const [sortKey, setSortKey] = useState<"id" | "rentalId" | "customer" | "dueDate" | "amount" | "status">("id");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const pageSize = 10;
   const [page, setPage] = useState(0);
 
@@ -123,17 +131,57 @@ export default function BillingsPage() {
     return allBillings.filter(b => {
       const customer = b.Customer || b.Rental?.Customer;
       const customerName = customer ? `${customer.firstName} ${customer.lastName}`.toLowerCase() : "";
-      return b.id.toString().includes(searchTerm) ||
+      const matchesSearch = b.id.toString().includes(searchTerm) ||
         (b.rentalId && b.rentalId.toString().includes(searchTerm)) ||
         customerName.includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === "all" || b.status === statusFilter;
+      const matchesBillingId = billingIdFilter === "" || String(b.id).includes(billingIdFilter.trim());
+      const matchesRentalId = rentalIdFilter === "" || String(b.rentalId ?? "").includes(rentalIdFilter.trim());
+      const matchesCustomerName =
+        customerNameFilter === "" ||
+        customerName.includes(customerNameFilter.toLowerCase()) ||
+        (customer?.email ?? "").toLowerCase().includes(customerNameFilter.toLowerCase());
+      return matchesSearch && matchesStatus && matchesBillingId && matchesRentalId && matchesCustomerName;
     });
-  }, [allBillings, searchTerm]);
+  }, [allBillings, searchTerm, statusFilter, billingIdFilter, rentalIdFilter, customerNameFilter]);
+
+  const sortedBillings = useMemo(() => {
+    return [...filteredBillings].sort((left, right) => {
+      const leftCustomer = left.Customer
+        ? `${left.Customer.firstName} ${left.Customer.lastName}`
+        : left.Rental?.Customer
+        ? `${left.Rental.Customer.firstName} ${left.Rental.Customer.lastName}`
+        : "";
+      const rightCustomer = right.Customer
+        ? `${right.Customer.firstName} ${right.Customer.lastName}`
+        : right.Rental?.Customer
+        ? `${right.Rental.Customer.firstName} ${right.Rental.Customer.lastName}`
+        : "";
+
+      switch (sortKey) {
+        case "id":
+          return compareValues(left.id, right.id, sortDirection);
+        case "rentalId":
+          return compareValues(left.rentalId ?? 0, right.rentalId ?? 0, sortDirection);
+        case "customer":
+          return compareValues(leftCustomer, rightCustomer, sortDirection);
+        case "dueDate":
+          return compareValues(new Date(left.dueDate).getTime(), new Date(right.dueDate).getTime(), sortDirection);
+        case "amount":
+          return compareValues(Number(left.amount), Number(right.amount), sortDirection);
+        case "status":
+          return compareValues(left.status, right.status, sortDirection);
+        default:
+          return 0;
+      }
+    });
+  }, [filteredBillings, sortDirection, sortKey]);
 
   const paginatedBillings = useMemo(() => {
-    return filteredBillings.slice(page * pageSize, (page + 1) * pageSize);
-  }, [filteredBillings, page, pageSize]);
+    return sortedBillings.slice(page * pageSize, (page + 1) * pageSize);
+  }, [sortedBillings, page, pageSize]);
 
-  const totalPages = Math.ceil(filteredBillings.length / pageSize);
+  const totalPages = Math.ceil(sortedBillings.length / pageSize);
 
   const [payBilling] = usePayBillingMutation();
   const [createBilling, { isLoading: isCreating }] = useCreateBillingMutation();
@@ -319,35 +367,96 @@ export default function BillingsPage() {
 
       <Card>
         <CardHeader className="pb-3">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by billing ID or customer name..."
-              className="pl-9"
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setPage(0);
-              }}
-            />
+          <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <Input
+                placeholder="Filter by billing ID..."
+                value={billingIdFilter}
+                onChange={(e) => {
+                  setBillingIdFilter(e.target.value);
+                  setPage(0);
+                }}
+              />
+              <Input
+                placeholder="Filter by rental ID..."
+                value={rentalIdFilter}
+                onChange={(e) => {
+                  setRentalIdFilter(e.target.value);
+                  setPage(0);
+                }}
+              />
+              <Input
+                placeholder="Filter by customer name..."
+                value={customerNameFilter}
+                onChange={(e) => {
+                  setCustomerNameFilter(e.target.value);
+                  setPage(0);
+                }}
+              />
+              <select
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value as "all" | "pending" | "paid" | "overdue");
+                  setPage(0);
+                }}
+              >
+                <option value="all">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="paid">Paid</option>
+                <option value="overdue">Overdue</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by billing ID or customer name..."
+                className="pl-9"
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setPage(0);
+                }}
+              />
+            </div>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="py-10 text-center text-muted-foreground">Loading billings...</div>
-          ) : filteredBillings.length === 0 ? (
+          ) : sortedBillings.length === 0 ? (
             <div className="py-10 text-center text-muted-foreground">No billing records found.</div>
           ) : (
             <div className="overflow-hidden rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[100px]">ID</TableHead>
-                    <TableHead>Rental ID</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>End Date</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Status</TableHead>
+                    <SortableTableHead className="w-[100px]" label="ID" isActive={sortKey === "id"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "id"));
+                      setSortKey("id");
+                    }} />
+                    <SortableTableHead label="Rental ID" isActive={sortKey === "rentalId"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "rentalId"));
+                      setSortKey("rentalId");
+                    }} />
+                    <SortableTableHead label="Customer" isActive={sortKey === "customer"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "customer"));
+                      setSortKey("customer");
+                    }} />
+                    <SortableTableHead label="End Date" isActive={sortKey === "dueDate"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "dueDate"));
+                      setSortKey("dueDate");
+                    }} />
+                    <SortableTableHead label="Amount" isActive={sortKey === "amount"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "amount"));
+                      setSortKey("amount");
+                    }} />
+                    <SortableTableHead label="Status" isActive={sortKey === "status"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "status"));
+                      setSortKey("status");
+                    }} />
                     <TableHead className="w-[100px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

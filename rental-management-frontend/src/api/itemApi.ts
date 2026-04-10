@@ -43,7 +43,7 @@ export const itemApi = createApi({
   endpoints: (builder) => ({
     getItems: builder.query<Item[], void>({
       query: () => "items",
-      providesTags: ["Item"],
+      providesTags: ["Item"]
     }),
     getItem: builder.query<Item, number>({
       query: (id) => `items/${id}`,

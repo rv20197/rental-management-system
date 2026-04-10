@@ -1,7 +1,7 @@
 import { baseUrl } from "@/api";
 import { getSessionToken } from "@/lib/browser";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import type { Item } from "./itemApi";
+import { itemApi, type Item } from "./itemApi";
 import type { Customer } from "./customerApi";
 
 export interface RentalItem {
@@ -20,6 +20,9 @@ export interface Rental {
   quantity?: number;
   returnedQuantity?: number;
   outstandingQty?: number;
+  outstandingAmount?: number;
+  baseAmount?: number;
+  totalAmount?: number;
   inventoryUnitIds?: number[];
   startDate: string;
   endDate?: string;
@@ -92,6 +95,14 @@ export const rentalApi = createApi({
         body,
       }),
       invalidatesTags: ["Rental", "Billing", "Item"],
+      async onQueryStarted(_, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(itemApi.util.invalidateTags(["Item"]));
+        } catch {
+          // Let the mutation error handling flow handle failures.
+        }
+      },
     }),
     updateRental: builder.mutation<Rental, { id: number; data: UpdateRentalPayload }>({
       query: ({ id, data }) => ({
@@ -100,6 +111,14 @@ export const rentalApi = createApi({
         body: data,
       }),
       invalidatesTags: ["Rental", "Item"],
+      async onQueryStarted(_, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(itemApi.util.invalidateTags(["Item"]));
+        } catch {
+          // Let the mutation error handling flow handle failures.
+        }
+      },
     }),
     deleteRental: builder.mutation<void, number>({
       query: (id) => ({
@@ -107,6 +126,14 @@ export const rentalApi = createApi({
         method: "DELETE",
       }),
       invalidatesTags: ["Rental", "Item"],
+      async onQueryStarted(_, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(itemApi.util.invalidateTags(["Item"]));
+        } catch {
+          // Let the mutation error handling flow handle failures.
+        }
+      },
     }),
     // delegate to billing endpoint to calculate return bill
     returnAndBill: builder.mutation<any, { rentalId: number; items: { rentalItemId: number; quantity: number }[] }>({
@@ -116,6 +143,14 @@ export const rentalApi = createApi({
         body,
       }),
       invalidatesTags: ["Rental", "Item", "Billing"],
+      async onQueryStarted(_, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(itemApi.util.invalidateTags(["Item"]));
+        } catch {
+          // Let the mutation error handling flow handle failures.
+        }
+      },
     }),
   }),
 });

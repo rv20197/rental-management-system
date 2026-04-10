@@ -7,7 +7,6 @@ import {
   TableHeader,
   TableRow,
 } from "./table";
-import { cn } from "@/lib/utils";
 
 interface GenericTableProps<T> {
   data: T[];

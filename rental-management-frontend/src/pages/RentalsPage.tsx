@@ -19,7 +19,6 @@ import {
   TableHeader,
   TableRow,
 } from "../components/ui/table";
-import { StatusBadge } from "../components/ui/StatusBadge";
 import {
   Dialog,
   DialogContent,
@@ -30,10 +29,12 @@ import {
 } from "../components/ui/dialog";
 import { Label } from "../components/ui/label";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
+import { SortableTableHead } from "../components/ui/sortable-table-head";
 import { Plus, Search, ChevronLeft, ChevronRight, ReceiptText, Download, CalendarPlus, Eye, Trash2, Pencil } from "lucide-react";
 import api from "../api";
 import { calculateDefaultDeposit } from "../lib/rentalUtils";
 import { calculateMonthsRented } from "../lib/billingUtils";
+import { compareValues, getNextSortDirection, type SortDirection } from "../lib/tableUtils";
 
 const downloadFile = async (endpoint: string, fallbackFilename: string) => {
   try {
@@ -72,10 +73,18 @@ const RentalRow = React.memo(function RentalRow({ rental, onReturn, onExtend, on
   const totalQty = rental.RentalItems && rental.RentalItems.length > 0
     ? rental.RentalItems.reduce((acc: number, ri: any) => acc + ri.quantity, 0)
     : rental.quantity;
+  const outstandingQty = rental.outstandingQty ?? Math.max((totalQty ?? 0) - (rental.returnedQuantity ?? 0), 0);
+  const itemNames = rental.RentalItems && rental.RentalItems.length > 0
+    ? rental.RentalItems
+        .map((ri: any) => ri.Item?.name)
+        .filter(Boolean)
+        .join(", ")
+    : rental.Item?.name ?? "-";
 
   return (
     <TableRow>
       <TableCell className="font-mono text-xs">{rental.id}</TableCell>
+      <TableCell className="max-w-[220px] truncate" title={itemNames}>{itemNames}</TableCell>
       <TableCell>
         {rental.Customer
           ? `${rental.Customer.firstName ?? ""} ${rental.Customer.lastName ?? ""}`.trim() || rental.Customer.email
@@ -83,6 +92,8 @@ const RentalRow = React.memo(function RentalRow({ rental, onReturn, onExtend, on
       </TableCell>
       <TableCell className="whitespace-nowrap">{new Date(rental.startDate).toLocaleDateString()}</TableCell>
       <TableCell>{totalQty}</TableCell>
+      <TableCell>{outstandingQty}</TableCell>
+      <TableCell>{rental.outstandingAmount != null ? `₹${Number(rental.outstandingAmount).toFixed(2)}` : "-"}</TableCell>
       <TableCell>{rental.depositAmount != null ? `₹${Number(rental.depositAmount).toFixed(2)}` : "-"}</TableCell>
       <TableCell>{rental.labourCost != null ? `₹${Number(rental.labourCost).toFixed(2)}` : "-"}</TableCell>
       <TableCell>{rental.transportCost != null ? `₹${Number(rental.transportCost).toFixed(2)}` : "-"}</TableCell>
@@ -145,25 +156,92 @@ const RentalRow = React.memo(function RentalRow({ rental, onReturn, onExtend, on
 
 export default function RentalsPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "completed" | "cancelled" | "returned">("all");
+  const [rentalIdFilter, setRentalIdFilter] = useState("");
+  const [itemNameFilter, setItemNameFilter] = useState("");
+  const [customerNameFilter, setCustomerNameFilter] = useState("");
+  const [sortKey, setSortKey] = useState<"id" | "items" | "customer" | "startDate" | "qty" | "outstandingQty" | "outstandingAmount" | "status">("id");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const pageSize = 10;
   const [page, setPage] = useState(0);
 
   const { data: allRentals = [], isLoading } = useGetRentalsQuery();
 
   const filteredRentals = useMemo(() => {
-    return allRentals.filter(r => 
-      (r.Item?.name ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (r.Customer?.firstName ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (r.Customer?.lastName ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (r.Customer?.email ?? "").toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [allRentals, searchTerm]);
+    return allRentals.filter((r) => {
+      const itemNames = r.RentalItems && r.RentalItems.length > 0
+        ? r.RentalItems.map((ri) => ri.Item?.name ?? "").join(" ")
+        : r.Item?.name ?? "";
+      const customerName = r.Customer
+        ? `${r.Customer.firstName ?? ""} ${r.Customer.lastName ?? ""}`.trim()
+        : "";
+      const matchesSearch =
+        itemNames.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (r.Customer?.firstName ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (r.Customer?.lastName ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (r.Customer?.email ?? "").toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === "all" || r.status === statusFilter;
+      const matchesRentalId = rentalIdFilter === "" || String(r.id).includes(rentalIdFilter.trim());
+      const matchesItemName = itemNameFilter === "" || itemNames.toLowerCase().includes(itemNameFilter.toLowerCase());
+      const matchesCustomerName =
+        customerNameFilter === "" ||
+        customerName.toLowerCase().includes(customerNameFilter.toLowerCase()) ||
+        (r.Customer?.email ?? "").toLowerCase().includes(customerNameFilter.toLowerCase());
+      return matchesSearch && matchesStatus && matchesRentalId && matchesItemName && matchesCustomerName;
+    });
+  }, [allRentals, searchTerm, statusFilter, rentalIdFilter, itemNameFilter, customerNameFilter]);
+
+  const sortedRentals = useMemo(() => {
+    return [...filteredRentals].sort((left, right) => {
+      const leftItems = left.RentalItems && left.RentalItems.length > 0
+        ? left.RentalItems.map((ri) => ri.Item?.name ?? "").join(", ")
+        : left.Item?.name ?? "";
+      const rightItems = right.RentalItems && right.RentalItems.length > 0
+        ? right.RentalItems.map((ri) => ri.Item?.name ?? "").join(", ")
+        : right.Item?.name ?? "";
+      const leftCustomer = left.Customer
+        ? `${left.Customer.firstName ?? ""} ${left.Customer.lastName ?? ""}`.trim() || left.Customer.email || ""
+        : "";
+      const rightCustomer = right.Customer
+        ? `${right.Customer.firstName ?? ""} ${right.Customer.lastName ?? ""}`.trim() || right.Customer.email || ""
+        : "";
+      const leftQty = left.RentalItems && left.RentalItems.length > 0
+        ? left.RentalItems.reduce((sum, ri) => sum + ri.quantity, 0)
+        : left.quantity ?? 0;
+      const rightQty = right.RentalItems && right.RentalItems.length > 0
+        ? right.RentalItems.reduce((sum, ri) => sum + ri.quantity, 0)
+        : right.quantity ?? 0;
+      const leftOutstandingQty = left.outstandingQty ?? Math.max(leftQty - (left.returnedQuantity ?? 0), 0);
+      const rightOutstandingQty = right.outstandingQty ?? Math.max(rightQty - (right.returnedQuantity ?? 0), 0);
+
+      switch (sortKey) {
+        case "id":
+          return compareValues(left.id, right.id, sortDirection);
+        case "items":
+          return compareValues(leftItems, rightItems, sortDirection);
+        case "customer":
+          return compareValues(leftCustomer, rightCustomer, sortDirection);
+        case "startDate":
+          return compareValues(new Date(left.startDate).getTime(), new Date(right.startDate).getTime(), sortDirection);
+        case "qty":
+          return compareValues(leftQty, rightQty, sortDirection);
+        case "outstandingQty":
+          return compareValues(leftOutstandingQty, rightOutstandingQty, sortDirection);
+        case "outstandingAmount":
+          return compareValues(Number(left.outstandingAmount ?? 0), Number(right.outstandingAmount ?? 0), sortDirection);
+        case "status":
+          return compareValues(left.status, right.status, sortDirection);
+        default:
+          return 0;
+      }
+    });
+  }, [filteredRentals, sortDirection, sortKey]);
 
   const paginatedRentals = useMemo(() => {
-    return filteredRentals.slice(page * pageSize, (page + 1) * pageSize);
-  }, [filteredRentals, page, pageSize]);
+    return sortedRentals.slice(page * pageSize, (page + 1) * pageSize);
+  }, [sortedRentals, page, pageSize]);
 
-  const totalPages = Math.ceil(filteredRentals.length / pageSize);
+  const totalPages = Math.ceil(sortedRentals.length / pageSize);
 
   const [returnAndBill, { isLoading: isReturning }] = useReturnAndBillMutation();
   const [createRental, { isLoading: isCreating }] = useCreateRentalMutation();
@@ -467,38 +545,108 @@ export default function RentalsPage() {
 
       <Card>
         <CardHeader className="pb-3">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search rentals by item or customer..."
-              className="pl-9"
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setPage(0);
-              }}
-            />
+          <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <Input
+                placeholder="Filter by rental ID..."
+                value={rentalIdFilter}
+                onChange={(e) => {
+                  setRentalIdFilter(e.target.value);
+                  setPage(0);
+                }}
+              />
+              <Input
+                placeholder="Filter by item name..."
+                value={itemNameFilter}
+                onChange={(e) => {
+                  setItemNameFilter(e.target.value);
+                  setPage(0);
+                }}
+              />
+              <Input
+                placeholder="Filter by customer name..."
+                value={customerNameFilter}
+                onChange={(e) => {
+                  setCustomerNameFilter(e.target.value);
+                  setPage(0);
+                }}
+              />
+              <select
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value as "all" | "active" | "completed" | "cancelled" | "returned");
+                  setPage(0);
+                }}
+              >
+                <option value="all">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="returned">Returned</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search rentals by item or customer..."
+                className="pl-9"
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setPage(0);
+                }}
+              />
+            </div>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="py-10 text-center text-muted-foreground">Loading rentals...</div>
-          ) : filteredRentals.length === 0 ? (
+          ) : sortedRentals.length === 0 ? (
             <div className="py-10 text-center text-muted-foreground">No rentals found.</div>
           ) : (
             <div className="overflow-hidden rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[100px]">ID</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Start Date</TableHead>
-                    <TableHead>Qty</TableHead>
-                    <TableHead>Outstanding</TableHead>
+                    <SortableTableHead className="w-[100px]" label="ID" isActive={sortKey === "id"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "id"));
+                      setSortKey("id");
+                    }} />
+                    <SortableTableHead label="Items" isActive={sortKey === "items"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "items"));
+                      setSortKey("items");
+                    }} />
+                    <SortableTableHead label="Customer" isActive={sortKey === "customer"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "customer"));
+                      setSortKey("customer");
+                    }} />
+                    <SortableTableHead label="Start Date" isActive={sortKey === "startDate"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "startDate"));
+                      setSortKey("startDate");
+                    }} />
+                    <SortableTableHead label="Qty" isActive={sortKey === "qty"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "qty"));
+                      setSortKey("qty");
+                    }} />
+                    <SortableTableHead label="Outstanding Qty" isActive={sortKey === "outstandingQty"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "outstandingQty"));
+                      setSortKey("outstandingQty");
+                    }} />
+                    <SortableTableHead label="Outstanding Amount" isActive={sortKey === "outstandingAmount"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "outstandingAmount"));
+                      setSortKey("outstandingAmount");
+                    }} />
                     <TableHead>Deposit</TableHead>
                     <TableHead>Labour Cost</TableHead>
                     <TableHead>Transport Cost</TableHead>
-                    <TableHead>Status</TableHead>
+                    <SortableTableHead label="Status" isActive={sortKey === "status"} direction={sortDirection} onClick={() => {
+                      setSortDirection(getNextSortDirection(sortKey, sortDirection, "status"));
+                      setSortKey("status");
+                    }} />
                     <TableHead className="w-[100px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

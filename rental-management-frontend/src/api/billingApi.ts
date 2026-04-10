@@ -2,7 +2,8 @@ import { baseUrl } from "@/api";
 import { getSessionToken } from "@/lib/browser";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
-import type { Rental } from "./rentalApi";
+import { itemApi } from "./itemApi";
+import { rentalApi, type Rental } from "./rentalApi";
 
 export interface BillingItem {
   id: number;
@@ -98,6 +99,14 @@ export const billingApi = createApi({
         method: "PUT",
       }),
       invalidatesTags: ["Billing"],
+      async onQueryStarted(_, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(rentalApi.util.invalidateTags(["Rental"]));
+        } catch {
+          // Let the mutation error handling flow handle failures.
+        }
+      },
     }),
     returnAndBill: builder.mutation<{ message: string; billing: Billing; processedReturns: any[] }, ReturnBillingPayload>({
       query: (body) => ({
@@ -106,6 +115,15 @@ export const billingApi = createApi({
         body,
       }),
       invalidatesTags: ["Billing", "Rental", "Item"],
+      async onQueryStarted(_, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(itemApi.util.invalidateTags(["Item"]));
+          dispatch(rentalApi.util.invalidateTags(["Rental"]));
+        } catch {
+          // Let the mutation error handling flow handle failures.
+        }
+      },
     }),
   }),
 });
