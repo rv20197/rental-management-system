@@ -5,6 +5,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import logger from "./utils/logger";
 import morganMiddleware from "./middleware/loggingMiddleware";
+import { errorHandler } from "./middleware/errorHandler";
 import { sequelize } from "./models";
 import setupSwagger from "./config/swagger";
 import { startReminderJob } from "./services/reminderService";
@@ -21,8 +22,8 @@ import billingRoutes from "./routes/billingRoutes";
  */
 const app = express();
 
-const allowedOrigins = process.env.CORS_ORIGIN 
-  ? process.env.CORS_ORIGIN.split(",") 
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(",")
   : ["http://localhost:3000", "http://localhost:5173"];
 
 app.use(cors({
@@ -45,13 +46,9 @@ app.use("/api/rentals", rentalRoutes);
 app.use("/api/billings", billingRoutes);
 
 /**
- * Fallback Unhandled Exception Catcher Middleware
- * Avoids raw stack dumping directly to requesting clients.
+ * Global Error Handling Middleware
  */
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  logger.error(err.stack);
-  res.status(500).json({ message: "Internal Server Error" });
-});
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 

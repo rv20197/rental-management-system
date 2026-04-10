@@ -144,6 +144,95 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/forgot-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Trigger forgot password email */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        email: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description If an account with that email exists, a password reset link has been sent. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/reset-password/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset password using token */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        password: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Password reset successfully. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid or expired token. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/billings": {
         parameters: {
             query?: never;
@@ -188,6 +277,10 @@ export interface paths {
                         dueDate?: string;
                         /** @enum {string} */
                         status?: "pending" | "paid" | "overdue";
+                        /** @description Additional labour cost for the billing */
+                        labourCost?: number;
+                        /** @description Additional transport cost for the billing */
+                        transportCost?: number;
                     };
                 };
             };
@@ -237,27 +330,7 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        /** Delete a billing record */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Billing record deleted successfully */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -322,6 +395,10 @@ export interface paths {
                         rentalId?: string;
                         /** @description Explicit quantity being returned now */
                         returnedQuantity?: number;
+                        /** @description Additional labour cost for the return */
+                        labourCost?: number;
+                        /** @description Additional transport cost for the return */
+                        transportCost?: number;
                     };
                 };
             };
@@ -636,6 +713,7 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
+                        name?: string;
                         status?: string;
                         monthlyRate?: number;
                         quantity?: number;
@@ -676,7 +754,36 @@ export interface paths {
         };
         options?: never;
         head?: never;
-        patch?: never;
+        /** Partial update of an item */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name?: string;
+                        status?: string;
+                        monthlyRate?: number;
+                        quantity?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Item updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         trace?: never;
     };
     "/rentals": {
@@ -728,6 +835,10 @@ export interface paths {
                         /** Format: date-time */
                         endDate?: string;
                         depositAmount?: number;
+                        /** @description Additional labour cost for the rental */
+                        labourCost?: number;
+                        /** @description Additional transport cost for the rental */
+                        transportCost?: number;
                         /** @enum {string} */
                         status?: "active" | "completed" | "cancelled";
                     };

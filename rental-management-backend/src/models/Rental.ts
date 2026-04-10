@@ -13,7 +13,12 @@ interface RentalAttributes {
   startDate: Date;
   endDate: Date;
   depositAmount: number;
-  status: 'active' | 'completed' | 'cancelled' | 'pending' | 'created';
+  labourCost?: number;
+  transportCost?: number;
+  returnLabourCost?: number;
+  returnTransportCost?: number;
+  damagesCost?: number;
+  status: 'active' | 'completed' | 'cancelled' | 'pending' | 'created' | 'returned';
   Item?: any;
   RentalItems?: any[];
   Customer?: any;
@@ -22,7 +27,7 @@ interface RentalAttributes {
 /**
  * Attributes needed to create a Rental
  */
-interface RentalCreationAttributes extends Optional<RentalAttributes, 'id' | 'status' | 'Item' | 'Customer' | 'inventoryUnitIds'> {}
+interface RentalCreationAttributes extends Optional<RentalAttributes, 'id' | 'status' | 'Item' | 'Customer' | 'inventoryUnitIds' | 'labourCost' | 'transportCost' | 'returnLabourCost' | 'returnTransportCost' | 'damagesCost'> {}
 
 /**
  * Rental Model
@@ -58,8 +63,33 @@ const Rental = sequelize.define<RentalInstance>('Rental', {
     type: DataTypes.DECIMAL, // Initial safety deposit held
     allowNull: false,
   },
+  labourCost: {
+    type: DataTypes.DECIMAL,
+    allowNull: true,
+    defaultValue: 0,
+  },
+  transportCost: {
+    type: DataTypes.DECIMAL,
+    allowNull: true,
+    defaultValue: 0,
+  },
+  returnLabourCost: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    defaultValue: 0,
+  },
+  returnTransportCost: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    defaultValue: 0,
+  },
+  damagesCost: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    defaultValue: 0,
+  },
   status: {
-    type: DataTypes.ENUM('active', 'completed', 'cancelled', 'pending', 'created'),
+    type: DataTypes.ENUM('active', 'completed', 'cancelled', 'pending', 'created', 'returned'),
     defaultValue: 'active', // Defines state of rental
   },
 }, {

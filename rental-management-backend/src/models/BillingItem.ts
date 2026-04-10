@@ -7,7 +7,8 @@ import sequelize from '../config/database';
 interface BillingItemAttributes {
   id: number;
   billingId: number;
-  itemId: number;
+  itemId: number | null;
+  description?: string;
   quantity: number;
   rate: number;
   total: number;
@@ -38,7 +39,11 @@ const BillingItem = sequelize.define<BillingItemInstance>('BillingItem', {
   },
   itemId: {
     type: DataTypes.INTEGER,
-    allowNull: false,
+    allowNull: true,
+  },
+  description: {
+    type: DataTypes.STRING,
+    allowNull: true,
   },
   quantity: {
     type: DataTypes.INTEGER,

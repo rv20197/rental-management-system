@@ -19,10 +19,13 @@ export interface Rental {
   customerId: number;
   quantity?: number;
   returnedQuantity?: number;
+  outstandingQty?: number;
   inventoryUnitIds?: number[];
   startDate: string;
   endDate?: string;
   depositAmount?: number;
+  labourCost?: number;
+  transportCost?: number;
   status: "active" | "completed" | "cancelled";
   createdAt?: string;
   Item?: Item;
@@ -39,6 +42,8 @@ export interface CreateRentalPayload {
   inventoryUnitIds?: number[];
   endDate?: string;
   depositAmount?: number;
+  labourCost?: number;
+  transportCost?: number;
   status?: "active" | "completed" | "cancelled";
 }
 
@@ -47,6 +52,8 @@ export interface UpdateRentalPayload {
   endDate?: string;
   items?: { itemId: number; quantity: number }[];
   depositAmount?: number;
+  labourCost?: number;
+  transportCost?: number;
 }
 
 export const rentalApi = createApi({
@@ -62,7 +69,7 @@ export const rentalApi = createApi({
       return headers;
     },
   }),
-  tagTypes: ["Rental", "Billing"],
+  tagTypes: ["Rental", "Billing", "Item"],
   endpoints: (builder) => ({
     getRentals: builder.query<Rental[], { customerId?: number; status?: string } | void>({
       query: (params) => {
@@ -84,7 +91,7 @@ export const rentalApi = createApi({
         method: "POST",
         body,
       }),
-      invalidatesTags: ["Rental", "Billing"],
+      invalidatesTags: ["Rental", "Billing", "Item"],
     }),
     updateRental: builder.mutation<Rental, { id: number; data: UpdateRentalPayload }>({
       query: ({ id, data }) => ({
@@ -92,14 +99,14 @@ export const rentalApi = createApi({
         method: "PUT",
         body: data,
       }),
-      invalidatesTags: ["Rental"],
+      invalidatesTags: ["Rental", "Item"],
     }),
     deleteRental: builder.mutation<void, number>({
       query: (id) => ({
         url: `rentals/${id}`,
         method: "DELETE",
       }),
-      invalidatesTags: ["Rental"],
+      invalidatesTags: ["Rental", "Item"],
     }),
     // delegate to billing endpoint to calculate return bill
     returnAndBill: builder.mutation<any, { rentalId: number; items: { rentalItemId: number; quantity: number }[] }>({
@@ -108,7 +115,7 @@ export const rentalApi = createApi({
         method: "POST",
         body,
       }),
-      invalidatesTags: ["Rental"],
+      invalidatesTags: ["Rental", "Item", "Billing"],
     }),
   }),
 });

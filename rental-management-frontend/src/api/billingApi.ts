@@ -32,6 +32,8 @@ export interface Billing {
   totalDamages?: number;
   depositUsed?: number;
   availableDeposit?: number;
+  labourCost?: number;
+  transportCost?: number;
   Rental?: Rental;
   Customer?: any;
   BillingItems?: BillingItem[];
@@ -47,11 +49,18 @@ export interface CreateBillingPayload {
   items?: Partial<BillingItem>[];
   damages?: Partial<BillingDamage>[];
   availableDeposit?: number;
+  labourCost?: number;
+  transportCost?: number;
 }
 
 export interface ReturnBillingPayload {
   rentalId: number;
-  returnedQuantity: number;
+  items: { rentalItemId: number; quantity: number }[];
+  labourCost?: number;
+  transportCost?: number;
+  returnLabourCost?: number;
+  returnTransportCost?: number;
+  damagesCost?: number;
 }
 
 export const billingApi = createApi({
@@ -65,7 +74,7 @@ export const billingApi = createApi({
       return headers;
     },
   }),
-  tagTypes: ["Billing"],
+  tagTypes: ["Billing", "Rental", "Item"],
   endpoints: (builder) => ({
     getBillings: builder.query<Billing[], void>({
       query: () => "billings",
@@ -83,13 +92,6 @@ export const billingApi = createApi({
       }),
       invalidatesTags: ["Billing"],
     }),
-    deleteBilling: builder.mutation<void, number>({
-      query: (id) => ({
-        url: `billings/${id}`,
-        method: "DELETE",
-      }),
-      invalidatesTags: ["Billing"],
-    }),
     payBilling: builder.mutation<Billing, number>({
       query: (id) => ({
         url: `billings/${id}/pay`,
@@ -97,13 +99,13 @@ export const billingApi = createApi({
       }),
       invalidatesTags: ["Billing"],
     }),
-    returnAndBill: builder.mutation<Billing, ReturnBillingPayload>({
+    returnAndBill: builder.mutation<{ message: string; billing: Billing; processedReturns: any[] }, ReturnBillingPayload>({
       query: (body) => ({
         url: "billings/return",
         method: "POST",
         body,
       }),
-      invalidatesTags: ["Billing"],
+      invalidatesTags: ["Billing", "Rental", "Item"],
     }),
   }),
 });
@@ -112,7 +114,6 @@ export const {
   useGetBillingsQuery,
   useGetBillingQuery,
   useCreateBillingMutation,
-  useDeleteBillingMutation,
   usePayBillingMutation,
   useReturnAndBillMutation,
 } = billingApi;

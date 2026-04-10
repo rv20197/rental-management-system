@@ -61,6 +61,12 @@ router.get('/', authenticate, getAllRentals);
  *                 format: date-time
  *               depositAmount:
  *                 type: number
+ *               labourCost:
+ *                 type: number
+ *                 description: Additional labour cost for the rental
+ *               transportCost:
+ *                 type: number
+ *                 description: Additional transport cost for the rental
  *               status:
  *                 type: string
  *                 enum: [active, completed, cancelled]

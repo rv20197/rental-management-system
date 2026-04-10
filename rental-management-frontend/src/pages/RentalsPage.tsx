@@ -1,13 +1,14 @@
 import React, { useState, useMemo, useEffect } from "react";
 import {
   useGetRentalsQuery,
-  useReturnAndBillMutation,
   useCreateRentalMutation,
   useUpdateRentalMutation,
 } from "../api/rentalApi";
+import { useReturnAndBillMutation } from "../api/billingApi";
 import { useGetItemsQuery } from "../api/itemApi";
 import { toast } from "sonner";
 import { useGetCustomersQuery } from "../api/customerApi";
+import CostBreakdown from "../components/CostBreakdown";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import {
@@ -18,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "../components/ui/table";
+import { StatusBadge } from "../components/ui/StatusBadge";
 import {
   Dialog,
   DialogContent,
@@ -28,7 +30,7 @@ import {
 } from "../components/ui/dialog";
 import { Label } from "../components/ui/label";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
-import { Plus, Search, ChevronLeft, ChevronRight, ReceiptText, Download, CalendarPlus, Eye, X, Trash2, Pencil } from "lucide-react";
+import { Plus, Search, ChevronLeft, ChevronRight, ReceiptText, Download, CalendarPlus, Eye, Trash2, Pencil } from "lucide-react";
 import api from "../api";
 import { calculateDefaultDeposit } from "../lib/rentalUtils";
 import { calculateMonthsRented } from "../lib/billingUtils";
@@ -82,12 +84,16 @@ const RentalRow = React.memo(function RentalRow({ rental, onReturn, onExtend, on
       <TableCell className="whitespace-nowrap">{new Date(rental.startDate).toLocaleDateString()}</TableCell>
       <TableCell>{totalQty}</TableCell>
       <TableCell>{rental.depositAmount != null ? `₹${Number(rental.depositAmount).toFixed(2)}` : "-"}</TableCell>
+      <TableCell>{rental.labourCost != null ? `₹${Number(rental.labourCost).toFixed(2)}` : "-"}</TableCell>
+      <TableCell>{rental.transportCost != null ? `₹${Number(rental.transportCost).toFixed(2)}` : "-"}</TableCell>
       <TableCell>
         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
           rental.status === "active" 
             ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" 
             : rental.status === "completed"
             ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+            : rental.status === "returned"
+            ? "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
             : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
         }`}>
           {rental.status}
@@ -98,7 +104,14 @@ const RentalRow = React.memo(function RentalRow({ rental, onReturn, onExtend, on
           <Button size="icon-xs" variant="ghost" className="text-blue-600" title="View Details" onClick={() => onView(rental)}>
             <Eye className="size-3" />
           </Button>
-          <Button size="icon-xs" variant="ghost" className="text-blue-600" title="Edit Rental" onClick={() => onEdit(rental)}>
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            className="text-blue-600"
+            title="Edit Rental"
+            onClick={() => onEdit(rental)}
+            disabled={rental.status === "returned" || rental.status === "completed"}
+          >
             <Pencil className="size-3" />
           </Button>
           <Button size="icon-xs" variant="ghost" className="text-blue-600" title="Download Estimation" onClick={handleDownloadEstimation}>
@@ -174,6 +187,8 @@ export default function RentalsPage() {
   );
   const [newDepositAmount, setNewDepositAmount] = useState<string>("");
   const [isNewDepositOverridden, setIsNewDepositOverridden] = useState(false);
+  const [newLabourCost, setNewLabourCost] = useState<string>("");
+  const [newTransportCost, setNewTransportCost] = useState<string>("");
 
   const [editOpen, setEditOpen] = useState(false);
   const [editRentalId, setEditRentalId] = useState<number | null>(null);
@@ -181,6 +196,8 @@ export default function RentalsPage() {
   const [editEndDate, setEditEndDate] = useState<string>("");
   const [editDepositAmount, setEditDepositAmount] = useState<string>("");
   const [isEditDepositOverridden, setIsEditDepositOverridden] = useState(false);
+  const [editLabourCost, setEditLabourCost] = useState<string>("");
+  const [editTransportCost, setEditTransportCost] = useState<string>("");
 
   // Auto-calculate deposit for new rental
   useEffect(() => {
@@ -225,6 +242,11 @@ export default function RentalsPage() {
 
   const [selectedReturnRentalId, setSelectedReturnRentalId] = useState<number | null>(null);
   const [returnItems, setReturnItems] = useState<{ rentalItemId: number; quantity: number }[]>([]);
+  const [returnLabourCost, setReturnLabourCost] = useState<string>("");
+  const [returnTransportCost, setReturnTransportCost] = useState<string>("");
+  const [returnReturnLabourCost, setReturnReturnLabourCost] = useState<string>("");
+  const [returnReturnTransportCost, setReturnReturnTransportCost] = useState<string>("");
+  const [returnDamagesCost, setReturnDamagesCost] = useState<string>("");
 
   const selectedReturnRental = useMemo(
     () => allRentals.find((r) => r.id === selectedReturnRentalId) || null,
@@ -238,11 +260,6 @@ export default function RentalsPage() {
     () => allRentals.find((r) => r.id === extendOpenRentalId) || null,
     [allRentals, extendOpenRentalId],
   );
-
-  const allowable = useMemo(() => {
-    if (!selectedReturnRental) return 0;
-    return selectedReturnRental.quantity - (selectedReturnRental.returnedQuantity || 0);
-  }, [selectedReturnRental]);
 
   const handleOpenReturn = (rental: any) => {
     setSelectedReturnRentalId(rental.id);
@@ -263,10 +280,20 @@ export default function RentalsPage() {
     try {
       const result = await returnAndBill({ 
         rentalId: selectedReturnRentalId, 
-        items: returnItems 
+        items: returnItems,
+        labourCost: returnLabourCost === "" ? undefined : Number(returnLabourCost),
+        transportCost: returnTransportCost === "" ? undefined : Number(returnTransportCost),
+        returnLabourCost: returnReturnLabourCost === "" ? undefined : Number(returnReturnLabourCost),
+        returnTransportCost: returnReturnTransportCost === "" ? undefined : Number(returnReturnTransportCost),
+        damagesCost: returnDamagesCost === "" ? undefined : Number(returnDamagesCost),
       }).unwrap();
       setSelectedReturnRentalId(null);
       setReturnItems([]);
+      setReturnLabourCost("");
+      setReturnTransportCost("");
+      setReturnReturnLabourCost("");
+      setReturnReturnTransportCost("");
+      setReturnDamagesCost("");
       toast.success("Return processed successfully!");
       if (result.billing?.id) {
         downloadFile(`/billings/${result.billing.id}/download`, `bill-${result.billing.id}.pdf`);
@@ -321,6 +348,8 @@ export default function RentalsPage() {
     setEditItems(rental.RentalItems.map((ri: any) => ({ itemId: ri.itemId, quantity: ri.quantity })));
     setEditEndDate(new Date(rental.endDate).toISOString().slice(0, 10));
     setEditDepositAmount(rental.depositAmount.toString());
+    setEditLabourCost(rental.labourCost?.toString() || "");
+    setEditTransportCost(rental.transportCost?.toString() || "");
     setEditOpen(true);
     setIsEditDepositOverridden(false);
   };
@@ -335,6 +364,8 @@ export default function RentalsPage() {
           items: editItems as any,
           endDate: editEndDate,
           depositAmount: editDepositAmount === "" ? undefined : Number(editDepositAmount),
+          labourCost: editLabourCost === "" ? undefined : Number(editLabourCost),
+          transportCost: editTransportCost === "" ? undefined : Number(editTransportCost),
         }
       }).unwrap();
       setEditOpen(false);
@@ -374,6 +405,10 @@ export default function RentalsPage() {
     if (e) e.preventDefault();
     const depositStr = newDepositAmount.trim();
     const parsedDeposit = depositStr === "" ? undefined : Number(depositStr);
+    const labourCostStr = newLabourCost.trim();
+    const parsedLabourCost = labourCostStr === "" ? undefined : Number(labourCostStr);
+    const transportCostStr = newTransportCost.trim();
+    const parsedTransportCost = transportCostStr === "" ? undefined : Number(transportCostStr);
     
     const validItems = newItems.filter(item => item.itemId !== "" && item.quantity > 0);
     
@@ -389,12 +424,16 @@ export default function RentalsPage() {
         endDate: newEndDate 
       };
       if (parsedDeposit != null) payload.depositAmount = parsedDeposit;
+      if (parsedLabourCost != null) payload.labourCost = parsedLabourCost;
+      if (parsedTransportCost != null) payload.transportCost = parsedTransportCost;
       
       const rental = await createRental(payload).unwrap();
       setNewOpen(false);
       setNewItems([{ itemId: "", quantity: 1 }]);
       setNewCustomerId("");
       setNewDepositAmount("");
+      setNewLabourCost("");
+      setNewTransportCost("");
       setIsNewDepositOverridden(false);
       setNewEndDate((() => {
         const d = new Date();
@@ -455,7 +494,10 @@ export default function RentalsPage() {
                     <TableHead>Customer</TableHead>
                     <TableHead>Start Date</TableHead>
                     <TableHead>Qty</TableHead>
+                    <TableHead>Outstanding</TableHead>
                     <TableHead>Deposit</TableHead>
+                    <TableHead>Labour Cost</TableHead>
+                    <TableHead>Transport Cost</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-[100px]">Actions</TableHead>
                   </TableRow>
@@ -627,6 +669,55 @@ export default function RentalsPage() {
               </div>
             </div>
 
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="returnReturnLabourCost">Labour Cost (₹)</Label>
+                <Input
+                  id="returnReturnLabourCost"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="0"
+                  value={returnReturnLabourCost}
+                  onChange={(e) => setReturnReturnLabourCost(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="returnReturnTransportCost">Transport Cost (₹)</Label>
+                <Input
+                  id="returnReturnTransportCost"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="0"
+                  value={returnReturnTransportCost}
+                  onChange={(e) => setReturnReturnTransportCost(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="returnDamagesCost">Damages Cost (₹)</Label>
+                <Input
+                  id="returnDamagesCost"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="0 — enter if any damage occurred"
+                  value={returnDamagesCost}
+                  onChange={(e) => setReturnDamagesCost(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Leave blank if no damage. Defaults to ₹0.</p>
+              </div>
+            </div>
+
+            <div className="bg-muted p-3 rounded-md">
+              <div className="text-sm">
+                <strong>Additional Return Charges: ₹{(
+                  (Number(returnReturnLabourCost) || 0) +
+                  (Number(returnReturnTransportCost) || 0) +
+                  (Number(returnDamagesCost) || 0)
+                ).toFixed(2)}</strong>
+              </div>
+            </div>
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setSelectedReturnRentalId(null)}>Cancel</Button>
@@ -772,6 +863,33 @@ export default function RentalsPage() {
               <p className="text-xs text-muted-foreground">Leave blank to use auto-calculated deposit of ₹{newTotals.deposit.toFixed(2)}.</p>
             </div>
 
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="labourCost">Labour Cost (₹)</Label>
+                <Input
+                  id="labourCost"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="0.00"
+                  value={newLabourCost}
+                  onChange={(e) => setNewLabourCost(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="transportCost">Transport Cost (₹)</Label>
+                <Input
+                  id="transportCost"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="0.00"
+                  value={newTransportCost}
+                  onChange={(e) => setNewTransportCost(e.target.value)}
+                />
+              </div>
+            </div>
+
             <div className="bg-muted p-3 rounded-md space-y-1">
               <div className="flex justify-between text-sm">
                 <span>Estimated Rent ({calculateMonthsRented(new Date(newStartDate), new Date(newEndDate)).toFixed(1)} mo)</span>
@@ -913,6 +1031,33 @@ export default function RentalsPage() {
               <p className="text-xs text-muted-foreground">Leave blank to use auto-calculated deposit of ₹{editTotals.deposit.toFixed(2)}.</p>
             </div>
 
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="labourCost-edit">Labour Cost (₹)</Label>
+                <Input
+                  id="labourCost-edit"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="0.00"
+                  value={editLabourCost}
+                  onChange={(e) => setEditLabourCost(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="transportCost-edit">Transport Cost (₹)</Label>
+                <Input
+                  id="transportCost-edit"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="0.00"
+                  value={editTransportCost}
+                  onChange={(e) => setEditTransportCost(e.target.value)}
+                />
+              </div>
+            </div>
+
             <div className="bg-muted p-3 rounded-md space-y-1">
               <div className="flex justify-between text-sm">
                 <span>Estimated Rent ({calculateMonthsRented(new Date(editRentalData?.startDate || new Date()), new Date(editEndDate)).toFixed(1)} mo)</span>
@@ -945,6 +1090,15 @@ export default function RentalsPage() {
             <DialogTitle>Rental Details - Rental #{selectedRental?.id}</DialogTitle>
             <DialogDescription>Detailed view of the rental and its items.</DialogDescription>
           </DialogHeader>
+
+          {selectedRental?.status === 'returned' && (
+            <div className="flex items-center gap-2 p-3 rounded-md bg-gray-100 border border-gray-300">
+              <div className="text-sm text-gray-700">
+                🔒 This rental has been returned and is locked for editing.
+              </div>
+            </div>
+          )}
+
           {selectedRental && (
             <div className="space-y-6 py-4">
               <div className="grid grid-cols-2 gap-4 text-sm">
@@ -986,6 +1140,18 @@ export default function RentalsPage() {
                     <p className="font-semibold">₹{Number(selectedRental.depositAmount).toFixed(2)}</p>
                   </div>
                 )}
+                {Number(selectedRental.labourCost) > 0 && (
+                  <div>
+                    <p className="text-muted-foreground">Labour Cost</p>
+                    <p className="font-semibold">₹{Number(selectedRental.labourCost).toFixed(2)}</p>
+                  </div>
+                )}
+                {Number(selectedRental.transportCost) > 0 && (
+                  <div>
+                    <p className="text-muted-foreground">Transport Cost</p>
+                    <p className="font-semibold">₹{Number(selectedRental.transportCost).toFixed(2)}</p>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -1015,12 +1181,54 @@ export default function RentalsPage() {
                   </Table>
                 </div>
               </div>
+
+              {(selectedRental.status === "created" || selectedRental.status === "pending" || isNewlyCreated) && (
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Cost Summary</h4>
+                  <CostBreakdown
+                    baseAmount={(() => {
+                      const months = calculateMonthsRented(new Date(selectedRental.startDate), new Date(selectedRental.endDate));
+                      let total = 0;
+                      if (selectedRental.RentalItems && selectedRental.RentalItems.length > 0) {
+                        selectedRental.RentalItems.forEach((ri: any) => {
+                          const rate = ri.Item?.monthlyRate ? Number(ri.Item.monthlyRate) : 0;
+                          total += ri.quantity * rate * months;
+                        });
+                      } else {
+                        const rate = selectedRental.Item?.monthlyRate ? Number(selectedRental.Item.monthlyRate) : 0;
+                        total = (selectedRental.quantity || 0) * rate * months;
+                      }
+                      return total;
+                    })()}
+                    transportCost={Number(selectedRental.transportCost) || 0}
+                    labourCost={Number(selectedRental.labourCost) || 0}
+                    depositAmount={Number(selectedRental.depositAmount) || 0}
+                    showDeposit={true}
+                  />
+                </div>
+              )}
+
+              {selectedRental.status === "returned" && (
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Return Costs</h4>
+                  <CostBreakdown
+                    baseAmount={0}
+                    transportCost={Number(selectedRental.returnTransportCost) || 0}
+                    labourCost={Number(selectedRental.returnLabourCost) || 0}
+                    returnLabourCost={Number(selectedRental.returnLabourCost) || 0}
+                    returnTransportCost={Number(selectedRental.returnTransportCost) || 0}
+                    damagesCost={Number(selectedRental.damagesCost) || 0}
+                    showDeposit={false}
+                  />
+                </div>
+              )}
             </div>
           )}
           <DialogFooter className="flex justify-between items-center sm:justify-between">
             <Button
               variant="outline"
               className="text-blue-600 gap-1"
+              disabled={selectedRental?.status === 'returned' || selectedRental?.status === 'completed'}
               onClick={() => {
                 setViewOpen(false);
                 handleEdit(selectedRental);

@@ -138,6 +138,81 @@
         }
       }
     },
+    "/auth/forgot-password": {
+      "post": {
+        "summary": "Trigger forgot password email",
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "If an account with that email exists, a password reset link has been sent."
+          }
+        }
+      }
+    },
+    "/auth/reset-password/{token}": {
+      "post": {
+        "summary": "Reset password using token",
+        "tags": [
+          "Auth"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "password"
+                ],
+                "properties": {
+                  "password": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password reset successfully."
+          },
+          "400": {
+            "description": "Invalid or expired token."
+          }
+        }
+      }
+    },
     "/billings": {
       "get": {
         "summary": "Get all billings",
@@ -189,6 +264,14 @@
                       "paid",
                       "overdue"
                     ]
+                  },
+                  "labourCost": {
+                    "type": "number",
+                    "description": "Additional labour cost for the billing"
+                  },
+                  "transportCost": {
+                    "type": "number",
+                    "description": "Additional transport cost for the billing"
                   }
                 }
               }
@@ -226,32 +309,6 @@
         "responses": {
           "200": {
             "description": "Billing details"
-          }
-        }
-      },
-      "delete": {
-        "summary": "Delete a billing record",
-        "tags": [
-          "Billings"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Billing record deleted successfully"
           }
         }
       }
@@ -308,6 +365,14 @@
                   "returnedQuantity": {
                     "type": "integer",
                     "description": "Explicit quantity being returned now"
+                  },
+                  "labourCost": {
+                    "type": "number",
+                    "description": "Additional labour cost for the return"
+                  },
+                  "transportCost": {
+                    "type": "number",
+                    "description": "Additional transport cost for the return"
                   }
                 }
               }
@@ -803,6 +868,14 @@
                   },
                   "depositAmount": {
                     "type": "number"
+                  },
+                  "labourCost": {
+                    "type": "number",
+                    "description": "Additional labour cost for the rental"
+                  },
+                  "transportCost": {
+                    "type": "number",
+                    "description": "Additional transport cost for the rental"
                   },
                   "status": {
                     "type": "string",

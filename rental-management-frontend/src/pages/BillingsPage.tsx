@@ -4,7 +4,6 @@ import { skipToken } from "@reduxjs/toolkit/query";
 import {
   useGetBillingsQuery,
   usePayBillingMutation,
-  useDeleteBillingMutation,
   useCreateBillingMutation,
 } from "../api/billingApi";
 import { useGetItemsQuery } from "../api/itemApi";
@@ -32,9 +31,10 @@ import {
 } from "../components/ui/table";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { Plus, Search, ChevronLeft, ChevronRight, CheckCircle2, Trash2, Download, Eye, AlertTriangle } from "lucide-react";
+import CostBreakdown from "../components/CostBreakdown";
 import api from "../api";
 
-const BillingRow = React.memo(function BillingRow({ billing, onPay, onDelete, onView }: { billing: any; onPay: (id: number) => void; onDelete: (id: number) => void; onView: (billing: any) => void }) {
+const BillingRow = React.memo(function BillingRow({ billing, onPay, onView }: { billing: any; onPay: (id: number) => void; onView: (billing: any) => void }) {
   const handleDownload = async () => {
     try {
       const response = await api.get(`/billings/${billing.id}/download`, {
@@ -97,13 +97,15 @@ const BillingRow = React.memo(function BillingRow({ billing, onPay, onDelete, on
             <Download className="size-3" />
           </Button>
           {billing.status !== "paid" && (
-            <Button size="icon-xs" variant="ghost" className="text-green-600" onClick={() => onPay(billing.id)}>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              className="text-green-600"
+              onClick={() => onPay(billing.id)}
+            >
               <CheckCircle2 className="size-3" />
             </Button>
           )}
-          <Button variant="ghost" size="icon-xs" className="text-destructive" onClick={() => onDelete(billing.id)}>
-            <Trash2 className="size-3" />
-          </Button>
         </div>
       </TableCell>
     </TableRow>
@@ -134,7 +136,6 @@ export default function BillingsPage() {
   const totalPages = Math.ceil(filteredBillings.length / pageSize);
 
   const [payBilling] = usePayBillingMutation();
-  const [deleteBilling] = useDeleteBillingMutation();
   const [createBilling, { isLoading: isCreating }] = useCreateBillingMutation();
 
   const { data: allItems = [] } = useGetItemsQuery();
@@ -157,6 +158,8 @@ export default function BillingsPage() {
   ]);
   const [newDamages, setNewDamages] = useState<{ description: string; amount: number }[]>([]);
   const [availableDeposit, setAvailableDeposit] = useState<number>(0);
+  const [newLabourCost, setNewLabourCost] = useState<string>("");
+  const [newTransportCost, setNewTransportCost] = useState<string>("");
 
   const { data: activeRentals = [] } = useGetRentalsQuery(
     newCustomerId !== "" ? { customerId: Number(newCustomerId), status: "active" } : skipToken
@@ -213,7 +216,9 @@ export default function BillingsPage() {
   const depositUsed = Math.min(availableDeposit, totalDamages);
   const remainingDepositAfterDamages = availableDeposit - depositUsed;
   const excessDamages = Math.max(0, totalDamages - availableDeposit);
-  const finalPayable = grandTotal + excessDamages;
+  const labourCostAmount = Number(newLabourCost) || 0;
+  const transportCostAmount = Number(newTransportCost) || 0;
+  const finalPayable = grandTotal + excessDamages + labourCostAmount + transportCostAmount;
 
   const handleAddItem = () => {
     setNewItems([...newItems, { itemId: "", quantity: 1, rate: 0, total: 0 }]);
@@ -273,14 +278,16 @@ export default function BillingsPage() {
 
     try {
       await createBilling({ 
-        customerId: newCustomerId === "" ? undefined : Number(newCustomerId),
+        customerId: typeof newCustomerId === "string" ? undefined : newCustomerId,
         rentalId: newRentalId === "" ? undefined : Number(newRentalId),
         amount: finalPayable, 
         dueDate: newDueDate, 
         status: 'pending',
         items: validItems as any,
         damages: newDamages.filter(d => d.description !== "" && d.amount > 0),
-        availableDeposit
+        availableDeposit,
+        labourCost: newLabourCost === "" ? undefined : Number(newLabourCost),
+        transportCost: newTransportCost === "" ? undefined : Number(newTransportCost),
       }).unwrap();
       
       setNewOpen(false);
@@ -289,6 +296,8 @@ export default function BillingsPage() {
       setNewItems([{ itemId: "", quantity: 1, rate: 0, total: 0 }]);
       setNewDamages([]);
       setAvailableDeposit(0);
+      setNewLabourCost("");
+      setNewTransportCost("");
       toast.success("Billing created successfully");
     } catch (err) {
       toast.error('Failed to create billing');
@@ -348,7 +357,6 @@ export default function BillingsPage() {
                       key={b.id}
                       billing={b}
                       onPay={payBilling}
-                      onDelete={deleteBilling}
                       onView={handleView}
                     />
                   ))}
@@ -590,6 +598,33 @@ export default function BillingsPage() {
               )}
             </div>
 
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="labourCost">Labour Cost (₹)</Label>
+                <Input
+                  id="labourCost"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="0.00"
+                  value={newLabourCost}
+                  onChange={(e) => setNewLabourCost(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="transportCost">Transport Cost (₹)</Label>
+                <Input
+                  id="transportCost"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="0.00"
+                  value={newTransportCost}
+                  onChange={(e) => setNewTransportCost(e.target.value)}
+                />
+              </div>
+            </div>
+
             <div className="space-y-2 pt-2 border-t">
               <h4 className="text-sm font-semibold">Bill Summary</h4>
               <div className="space-y-1 text-sm bg-muted/30 p-3 rounded-md border">
@@ -632,6 +667,18 @@ export default function BillingsPage() {
                       </div>
                     )}
                   </>
+                )}
+                {labourCostAmount > 0 && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Labour Cost:</span>
+                    <span>+₹{labourCostAmount.toFixed(2)}</span>
+                  </div>
+                )}
+                {transportCostAmount > 0 && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Transport Cost:</span>
+                    <span>+₹{transportCostAmount.toFixed(2)}</span>
+                  </div>
                 )}
                 <div className="flex justify-between pt-2 mt-2 border-t font-bold text-base">
                   <span>Final Payable Amount:</span>
@@ -745,39 +792,14 @@ export default function BillingsPage() {
               )}
 
               <div className="flex justify-end gap-2 border-t pt-4">
-                <div className="w-full sm:w-64 space-y-1.5">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Items Subtotal:</span>
-                    <span className="font-medium">₹{(Number(selectedBilling.amount) - Math.max(0, Number(selectedBilling.totalDamages || 0) - Number(selectedBilling.availableDeposit || 0))).toFixed(2)}</span>
-                  </div>
-                  
-                  {Number(selectedBilling.totalDamages) > 0 && (
-                    <>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Total Damages:</span>
-                        <span className="text-red-600">₹{Number(selectedBilling.totalDamages).toFixed(2)}</span>
-                      </div>
-                      {selectedBilling.rentalId && (
-                        <>
-                          <div className="flex justify-between text-xs italic">
-                            <span className="text-muted-foreground ml-2">Deposit Used:</span>
-                            <span className="text-green-600">-₹{Number(selectedBilling.depositUsed).toFixed(2)}</span>
-                          </div>
-                          {Number(selectedBilling.totalDamages) > Number(selectedBilling.availableDeposit) && (
-                            <div className="flex justify-between text-xs font-medium text-red-600">
-                              <span className="ml-2">Excess Damage Charged:</span>
-                              <span>+₹{(Number(selectedBilling.totalDamages) - Number(selectedBilling.availableDeposit)).toFixed(2)}</span>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </>
-                  )}
-                  
-                  <div className="flex justify-between pt-2 mt-2 border-t items-center">
-                    <span className="font-bold">Grand Total</span>
-                    <span className="text-2xl font-bold text-primary">₹{Number(selectedBilling.amount).toFixed(2)}</span>
-                  </div>
+                <div className="w-full sm:w-64">
+                  <CostBreakdown
+                    baseAmount={(Number(selectedBilling.amount) - (Number(selectedBilling.labourCost) || 0) - (Number(selectedBilling.transportCost) || 0))}
+                    transportCost={Number(selectedBilling.transportCost) || 0}
+                    labourCost={Number(selectedBilling.labourCost) || 0}
+                    depositAmount={Number(selectedBilling.Rental?.depositAmount) || 0}
+                    showDeposit={false}
+                  />
                 </div>
               </div>
             </div>

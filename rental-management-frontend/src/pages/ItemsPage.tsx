@@ -65,7 +65,7 @@ export default function ItemsPage() {
   const pageSize = 10;
   const [page, setPage] = useState(0);
 
-  const { data: allItems = [], isLoading } = useGetItemsQuery();
+  let { data: allItems = [], isLoading } = useGetItemsQuery();
 
   const filteredItems = useMemo(() => {
     return allItems.filter(item => 

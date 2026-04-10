@@ -1,165 +1,331 @@
 import { Response } from 'express';
 import PDFDocument from 'pdfkit';
 
-export const generateRentalPDF = (billing: any, res: Response) => {
-    const isEstimation = billing.returnedQuantity === null || billing.returnedQuantity === undefined;
-    const docTitle = isEstimation ? 'Rental Estimation' : 'Rental Bill';
+// Column positioning constants (in points)
+// FIX BUG 5: Corrected column order for proper layout
+const MARGIN = 50;
+const PAGE_WIDTH = 595; // A4 width
+const PAGE_HEIGHT = 842; // A4 height
+const RIGHT_EDGE = PAGE_WIDTH - MARGIN;
+// Table column layout with proper widths to prevent wrapping
+const COL_ITEM_X = 50;
+const COL_ITEM_W = 160; // Item Name
+const COL_DATE_X = 210;
+const COL_DATE_W = 80; // Return Date
+const COL_RATE_X = 290;
+const COL_RATE_W = 80; // Monthly Rate
+const COL_QTY_X = 370;
+const COL_QTY_W = 50; // Quantity
+const COL_TOTAL_X = 420;
+const COL_TOTAL_W = 110; // Total Amount
 
-    const doc = new PDFDocument({ margin: 50 });
-    const rightEdge = doc.page.width - 50;
-
-    const sellerCompany = process.env.FROM_NAME || 'Rental Management';
-
-    const customer = billing.Rental?.Customer || billing.Customer;
-    const customerName = customer ? `${customer.firstName}_${customer.lastName}` : 'Customer';
-    const dateStr = new Date(billing.createdAt || new Date()).toISOString().split('T')[0];
-    const type = isEstimation ? 'Estimate' : 'Bill';
-    const filename = `${customerName}_${dateStr}_${type}.pdf`.replace(/\s+/g, '_');
-
-    // HTTP headers for PDF download
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
-
-    doc.pipe(res);
-
-    // Bill Header
-    doc
-      .fillColor('#444444')
-      .fontSize(20)
-      .text(docTitle, 50, 57)
-      .fontSize(10)
-      .text(`Seller's Company: ${sellerCompany}`, 200, 65, { align: 'right' })
-      .moveDown()
-      .text('Seller\'s Address: Gala.no. 08, Haria Industrial Estate, Behind Universal Petrol Pump, Next to Capitol Hotel, Majiwada, Thane (W) - 400608.', 200, 80, { align: 'right' })
-      .moveDown()
-      .text('Seller\'s Phone: +91-9821509815', 200, 110, { align: 'right' })
-      .moveDown();
-
-    // Horizontal Line
-    doc
-      .strokeColor('#aaaaaa')
-      .lineWidth(1)
-      .moveTo(50, 130)
-      .lineTo(rightEdge, 130)
-      .stroke();
-
-    // Bill Information
-    const item = billing.Rental?.Item;
-
-    doc
-      .fontSize(10)
-      .text(isEstimation ? `Estimation Number: ${billing.id}` : `Bill Number: ${billing.id}`, 50, 145)
-      .text(isEstimation ? `Estimation Date: ${new Date(billing.createdAt).toLocaleDateString()}` : `Bill Date: ${new Date(billing.createdAt).toLocaleDateString()}`, 50, 160)
-      .text(`Due Date: ${new Date(billing.dueDate).toLocaleDateString()}`, 50, 175)
-      .text(`Status: ${billing.status.toUpperCase()}`, 50, 190)
-
-      .text('Customer Details:', 300, 145)
-      .text(`Name: ${customer ? `${customer.firstName} ${customer.lastName}` : 'N/A'}`, 300, 160)
-      .text(`Email: ${customer ? customer.email : 'N/A'}`, 300, 175)
-      .text(`Phone: ${customer ? customer.phone : 'N/A'}`, 300, 190)
-      .text(`Delivery Address: ${customer && customer.address ? customer.address : 'N/A'}`, 300, 205, { width: rightEdge - 300 })
-      .moveDown();
-
-    // Table Header
-    const tableTop = 250;
-    doc
-      .fontSize(10)
-      .font('Helvetica-Bold')
-      .text('Item', 50, tableTop)
-      .text('Monthly Rate / Price', 225, tableTop)
-      .text('Quantity', 390, tableTop)
-      .text('Total Amount', 470, tableTop, { align: 'right', width: rightEdge - 470 })
-      .font('Helvetica');
-
-    doc
-      .strokeColor('#aaaaaa')
-      .lineWidth(1)
-      .moveTo(50, tableTop + 15)
-      .lineTo(rightEdge, tableTop + 15)
-      .stroke();
-
-    // Table Content
-    let rowY = tableTop + 30;
-    
-    if (billing.BillingItems && billing.BillingItems.length > 0) {
-      billing.BillingItems.forEach((bi: any) => {
-        const itemName = bi.Item?.name || 'Unknown Item';
-        doc
-          .text(itemName, 50, rowY)
-          .text(`Rs.${parseFloat(bi.rate).toFixed(2)}`, 225, rowY)
-          .text(`${bi.quantity}`, 390, rowY)
-          .text(`Rs.${parseFloat(bi.total).toFixed(2)}`, 470, rowY, { align: 'right', width: rightEdge - 470 });
-        rowY += 20;
-      });
-    } else {
-      const item = billing.Rental?.Item;
-      const qty = isEstimation ? (billing.Rental?.quantity ?? 0) : (billing.returnedQuantity ?? 0);
-      doc
-        .text(item ? item.name : 'Unknown Item', 50, rowY)
-        .text(item ? `Rs.${parseFloat(item.monthlyRate).toFixed(2)}` : 'Rs.0.00', 225, rowY)
-        .text(`${qty}`, 390, rowY)
-        .text(`Rs.${parseFloat(billing.amount).toFixed(2)}`, 470, rowY, { align: 'right', width: rightEdge - 470 });
-      rowY += 20;
-    }
-
-    // Damages Section
-    if (billing.BillingDamages && billing.BillingDamages.length > 0) {
-      rowY += 10;
-      doc
-        .fontSize(10)
-        .font('Helvetica-Bold')
-        .fillColor('#ff0000')
-        .text('Damages & Deductions', 50, rowY)
-        .font('Helvetica')
-        .fillColor('#444444');
-      rowY += 15;
-      
-      billing.BillingDamages.forEach((bd: any) => {
-        doc
-          .text(bd.description, 50, rowY)
-          .text(`Rs.${parseFloat(bd.amount).toFixed(2)}`, 470, rowY, { align: 'right', width: rightEdge - 470 });
-        rowY += 15;
-      });
-    }
-
-    // Footer
-    const footerY = Math.max(rowY + 30, 400);
-    doc
-      .strokeColor('#aaaaaa')
-      .lineWidth(1)
-      .moveTo(50, footerY)
-      .lineTo(rightEdge, footerY)
-      .stroke();
-
-    let finalY = footerY + 15;
-
-    // Detailed Breakdown in Footer if Damages exist
-    if (Number(billing.totalDamages) > 0) {
-      doc.fontSize(9);
-      const subtotal = Number(billing.amount) - Math.max(0, Number(billing.totalDamages) - Number(billing.availableDeposit || 0));
-      doc.text(`Items Subtotal: Rs.${subtotal.toFixed(2)}`, 350, finalY, { align: 'right', width: rightEdge - 350 });
-      finalY += 12;
-      doc.text(`Total Damages: Rs.${parseFloat(billing.totalDamages).toFixed(2)}`, 350, finalY, { align: 'right', width: rightEdge - 350 });
-      finalY += 12;
-      
-      if (billing.rentalId) {
-        doc.text(`Deposit Used: -Rs.${parseFloat(billing.depositUsed).toFixed(2)}`, 350, finalY, { align: 'right', width: rightEdge - 350 });
-        finalY += 12;
-      }
-      finalY += 5;
-    }
-
-    doc
-      .fontSize(15)
-      .font('Helvetica-Bold')
-      .text(`Total Due: Rs.${parseFloat(billing.amount).toFixed(2)}`, 50, finalY, { align: 'right' });
-
-    if (billing.status === 'paid' && billing.paymentDate) {
-      doc
-        .fontSize(10)
-        .fillColor('green')
-        .text(`Paid on: ${new Date(billing.paymentDate).toLocaleDateString()}`, 50, footerY + 20);
-    }
-
-    doc.end();
+// Utility: Format currency value with Indian locale and Rs. prefix
+// FIX BUG 1: ₹ symbol not supported in standard PDFKit fonts
+const formatCurrency = (value: any): string => {
+  const num = Number(parseFloat(value) || 0);
+  return 'Rs. ' + num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
+
+// Utility: Format date
+const formatDate = (dateVal: any): string => {
+  const date = new Date(dateVal);
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
+// Utility: Draw status badge with background
+const drawStatusBadge = (doc: any, status: string, x: number, y: number) => {
+  const statusUpper = status.toUpperCase();
+  const badgeColors: any = {
+    PAID: { bg: '#10b981', fg: '#ffffff' }, // green
+    PENDING: '#f59e0b', // orange
+    RETURNED: '#9ca3af', // grey
+  };
+  const colors = badgeColors[statusUpper] || badgeColors.PENDING;
+
+  if (typeof colors === 'object') {
+    doc.rect(x - 5, y - 3, 60, 16).fill(colors.bg);
+    doc.fillColor(colors.fg);
+  } else {
+    doc.rect(x - 5, y - 3, 60, 16).fill(colors);
+    doc.fillColor('#ffffff');
+  }
+
+  doc.fontSize(9).font('Helvetica-Bold').text(statusUpper, x, y, { width: 60 });
+  doc.fillColor('#444444').font('Helvetica');
+};
+
+// Utility: Page break safety check
+const checkPageBreak = (doc: any, currentY: number, neededSpace: number): number => {
+  if (currentY + neededSpace > PAGE_HEIGHT - MARGIN) {
+    doc.addPage();
+    return MARGIN + 20;
+  }
+  return currentY;
+};
+
+export const generateRentalPDF = (billing: any, res: Response) => {
+  const isEstimation = billing.returnedQuantity === null || billing.returnedQuantity === undefined;
+  const docTitle = isEstimation ? 'RENTAL ESTIMATION' : 'RENTAL BILL';
+
+  const doc = new PDFDocument({ margin: MARGIN, size: 'A4' });
+
+  const sellerCompany = process.env.FROM_NAME || 'Rental Management';
+  const sellerAddress = 'Gala.no. 08, Haria Industrial Estate, Behind Universal Petrol Pump, Next to Capitol Hotel, Majiwada, Thane (W) - 400608.';
+  const sellerPhone = '+91-9821509815';
+
+  const customer = billing.Rental?.Customer || billing.Customer;
+  const customerName = customer ? `${customer.firstName}_${customer.lastName}` : 'Customer';
+  const dateStr = new Date(billing.createdAt || new Date()).toISOString().split('T')[0];
+  const type = isEstimation ? 'Estimate' : 'Bill';
+  const filename = `${customerName}_${dateStr}_${type}.pdf`.replace(/\s+/g, '_');
+
+  // HTTP headers for PDF download
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+  doc.pipe(res);
+
+  let y = MARGIN;
+
+  // ===== SECTION 1: HEADER =====
+  // Left column: Company info
+  doc.fontSize(18).font('Helvetica-Bold').fillColor('#1a1a1a').text(sellerCompany, MARGIN, y, { lineBreak: false });
+  y += 25;
+
+  doc.fontSize(9).font('Helvetica').fillColor('#555555');
+  doc.text(sellerAddress, MARGIN, y, { width: 250 });
+  y += 40;
+  doc.text(`Phone: ${sellerPhone}`, MARGIN, y, { lineBreak: false });
+  y += 15;
+
+  // Right column: Title and metadata
+  const rightColX = 330;
+  doc.fontSize(16).font('Helvetica-Bold').fillColor('#000000').text(docTitle, rightColX, MARGIN, { lineBreak: false });
+  doc.fontSize(10).font('Helvetica').fillColor('#444444');
+  doc.text(`${isEstimation ? 'Estimation' : 'Bill'} #${billing.id}`, rightColX, MARGIN + 22, { lineBreak: false });
+  doc.text(`Date: ${formatDate(billing.createdAt)}`, rightColX, MARGIN + 37, { lineBreak: false });
+  doc.text(`Due: ${formatDate(billing.dueDate)}`, rightColX, MARGIN + 52, { lineBreak: false });
+
+  // Rental Period
+  const startDate = billing.Rental?.startDate;
+  const endDate = billing.Rental?.endDate;
+  if (startDate) {
+    doc.text(`Start Date: ${formatDate(startDate)}`, rightColX, MARGIN + 67, { lineBreak: false });
+  }
+  if (endDate) {
+    doc.text(`End Date: ${formatDate(endDate)}`, rightColX, MARGIN + 82, { lineBreak: false });
+  } else if (isEstimation) {
+    // For estimations, if endDate is missing, we still show a placeholder or "N/A"
+    // but the user wants it to "populate End Date", which usually means using the one from the Rental model
+    // If billing.Rental?.endDate is also missing, we put "N/A"
+    doc.text(`End Date: N/A`, rightColX, MARGIN + 82, { lineBreak: false });
+  }
+
+  // Status badge
+  const badgeY = endDate ? MARGIN + 97 : MARGIN + 67;
+  drawStatusBadge(doc, billing.status || 'PENDING', rightColX, badgeY);
+  y = Math.max(y, badgeY + 20);
+
+  // Horizontal rule
+  doc.strokeColor('#cccccc').lineWidth(1).moveTo(MARGIN, y).lineTo(RIGHT_EDGE, y).stroke();
+  y += 15;
+
+  // ===== SECTION 2: CUSTOMER DETAILS =====
+  doc.fontSize(11).font('Helvetica-Bold').fillColor('#1a1a1a').text('Customer Details', MARGIN, y, { lineBreak: false });
+  y += 15;
+
+  doc.fontSize(9).font('Helvetica').fillColor('#444444');
+  const labelWidth = 100;
+  const detailX = MARGIN + labelWidth + 10;
+
+  doc.text('Name:', MARGIN, y, { lineBreak: false });
+  doc.text(customer ? `${customer.firstName} ${customer.lastName}` : 'N/A', detailX, y, { lineBreak: false });
+  y += 12;
+
+  doc.text('Email:', MARGIN, y, { lineBreak: false });
+  doc.text(customer && customer.email ? customer.email : 'N/A', detailX, y, { lineBreak: false });
+  y += 12;
+
+  doc.text('Phone:', MARGIN, y, { lineBreak: false });
+  doc.text(customer && customer.phone ? customer.phone : 'N/A', detailX, y, { lineBreak: false });
+  y += 12;
+
+  doc.text('Address:', MARGIN, y, { lineBreak: false });
+  doc.text(customer && customer.address ? customer.address : 'N/A', detailX, y, { width: RIGHT_EDGE - detailX });
+  y += 18;
+
+  // Horizontal rule
+  doc.strokeColor('#cccccc').lineWidth(1).moveTo(MARGIN, y).lineTo(RIGHT_EDGE, y).stroke();
+  y += 15;
+
+  // ===== SECTION 3: ITEMS TABLE =====
+  y = checkPageBreak(doc, y, 80);
+
+  // Table header
+  const headerY = y;
+  doc.fontSize(10).font('Helvetica-Bold').fillColor('#ffffff');
+  doc.rect(MARGIN, headerY, RIGHT_EDGE - MARGIN, 18).fill('#333333');
+
+  // FIX: Table columns with proper widths and lineBreak: false to prevent wrapping
+  doc.fillColor('#ffffff').text('Item Name', COL_ITEM_X + 2, headerY + 3, { width: COL_ITEM_W, lineBreak: false });
+  doc.text('Return Date', COL_DATE_X, headerY + 3, { width: COL_DATE_W, align: 'right', lineBreak: false });
+  doc.text('Monthly Rate', COL_RATE_X, headerY + 3, { width: COL_RATE_W, align: 'right', lineBreak: false });
+  doc.text('Quantity', COL_QTY_X, headerY + 3, { width: COL_QTY_W, align: 'right', lineBreak: false });
+  doc.text('Total Amount', COL_TOTAL_X, headerY + 3, { width: COL_TOTAL_W, align: 'right', lineBreak: false });
+
+  y = headerY + 22;
+
+  // Table rows
+  doc.fontSize(9).font('Helvetica').fillColor('#444444');
+  let rowBgColor = true;
+
+  if (billing.BillingItems && billing.BillingItems.length > 0) {
+    billing.BillingItems.forEach((bi: any, index: number) => {
+      // Alternate row background
+      if (rowBgColor) {
+        doc.rect(MARGIN, y - 3, RIGHT_EDGE - MARGIN, 16).fill('#f9f9f9');
+      }
+      rowBgColor = !rowBgColor;
+
+      doc.fillColor('#444444').font('Helvetica');
+      const itemName = bi.Item?.name || bi.description || 'Unknown Item';
+      const itemDate = bi.createdAt ? formatDate(bi.createdAt) : (billing.Rental?.endDate ? formatDate(billing.Rental.endDate) : (isEstimation ? 'Est. Date' : 'N/A'));
+      // FIX: All table cells with lineBreak: false to prevent mid-word wrapping
+      doc.text(itemName, COL_ITEM_X + 2, y, { width: COL_ITEM_W, lineBreak: false });
+      doc.text(itemDate, COL_DATE_X, y, { width: COL_DATE_W, align: 'right', lineBreak: false });
+      doc.text(formatCurrency(bi.rate || 0), COL_RATE_X, y, { width: COL_RATE_W, align: 'right', lineBreak: false });
+      doc.text(`${bi.quantity}`, COL_QTY_X, y, { width: COL_QTY_W, align: 'right', lineBreak: false });
+      doc.text(formatCurrency(bi.total || 0), COL_TOTAL_X, y, { width: COL_TOTAL_W, align: 'right', lineBreak: false });
+
+      y += 16;
+    });
+  } else {
+    // No items row
+    if (rowBgColor) {
+      doc.rect(MARGIN, y - 3, RIGHT_EDGE - MARGIN, 16).fill('#f9f9f9');
+    }
+    doc.fillColor('#999999').font('Helvetica').text('No items added', COL_ITEM_X + 2, y, { lineBreak: false });
+    y += 16;
+  }
+
+  // Table bottom border
+  doc.strokeColor('#cccccc').lineWidth(1).moveTo(MARGIN, y).lineTo(RIGHT_EDGE, y).stroke();
+  y += 15;
+
+  // ===== SECTION 4: COST BREAKDOWN SUMMARY =====
+  y = checkPageBreak(doc, y, 100);
+
+  // FIX: Summary rendering with proper label-value separation
+  const summaryLabelX = 50;
+  const summaryValueX = 420;
+  const summaryValueW = 110;
+
+  doc.fontSize(9).font('Helvetica').fillColor('#444444');
+
+  // Compute base rental charges (ONLY the actual items, excluding labour/transport/damages)
+  let rentalCharges = 0;
+  if (billing.BillingItems && billing.BillingItems.length > 0) {
+    rentalCharges = billing.BillingItems.reduce((sum: number, bi: any) => {
+      // Sum everything that is part of the billing items, as long as it's not a summary field
+      const itemTotal = Number(parseFloat(bi.total) || (parseFloat(bi.rate || 0) * parseInt(bi.quantity || 0)));
+      return sum + itemTotal;
+    }, 0);
+  } else {
+    rentalCharges = Number(parseFloat(billing.baseAmount) || 0);
+  }
+  
+  const labourCost = Number(parseFloat(billing.labourCost) || 0);
+  const transportCost = Number(parseFloat(billing.transportCost) || 0);
+  // Use Billing record first, fallback to Rental record
+  const returnLabourCost = Number(parseFloat(billing.returnLabourCost || billing.Rental?.returnLabourCost) || 0);
+  const returnTransportCost = Number(parseFloat(billing.returnTransportCost || billing.Rental?.returnTransportCost) || 0);
+  const damagesCost = Number(parseFloat(billing.damagesCost || billing.Rental?.damagesCost) || 0);
+  // FIX BUG 4: Use raw deposit value from DB without multiplication
+
+  const depositAmount = Number(parseFloat(billing.depositAmount) || 0);
+  console.log('Estimate PDF - depositAmount raw:', billing.depositAmount, 'parsed:', depositAmount);
+
+  // Rental Charges — label and value as separate doc.text() calls on same line
+  // Removed Rental Charges label per user request
+
+  // Labour Cost
+  if (labourCost > 0) {
+    doc.font('Helvetica').fontSize(10)
+       .text('Labour Cost:', summaryLabelX, y, { width: 300, lineBreak: false });
+    doc.font('Helvetica').fontSize(10)
+       .text(formatCurrency(labourCost), summaryValueX, y, { width: summaryValueW, align: 'right', lineBreak: false });
+    y += 20;
+  }
+
+  // Transport Cost
+  if (transportCost > 0) {
+    doc.font('Helvetica').fontSize(10)
+       .text('Transport Cost:', summaryLabelX, y, { width: 300, lineBreak: false });
+    doc.font('Helvetica').fontSize(10)
+       .text(formatCurrency(transportCost), summaryValueX, y, { width: summaryValueW, align: 'right', lineBreak: false });
+    y += 20;
+  }
+
+  // Deposit Amount
+  if (depositAmount > 0) {
+    doc.font('Helvetica').fontSize(10)
+       .text('Deposit Amount:', summaryLabelX, y, { width: 300, lineBreak: false });
+    doc.font('Helvetica').fontSize(10)
+       .text(formatCurrency(depositAmount), summaryValueX, y, { width: summaryValueW, align: 'right', lineBreak: false });
+    y += 20;
+  }
+
+  // Separator line before Total Due
+  y += 6;
+
+  // FIX BUG 3: Total Due calculation
+  // For Estimations: Rent + Labour + Transport + Deposit
+  // For Bills: Rent + Labour + Transport + Return Labour + Return Transport + Damages
+  let totalDue = 0;
+  if (isEstimation) {
+    totalDue = rentalCharges + labourCost + transportCost + depositAmount;
+  } else {
+    totalDue = rentalCharges + returnLabourCost + returnTransportCost + damagesCost;
+  }
+
+  doc.font('Helvetica-Bold').fontSize(11)
+     .text('Total Due:', summaryLabelX, y, { width: 300, lineBreak: false });
+  doc.font('Helvetica-Bold').fontSize(11)
+     .text(formatCurrency(totalDue), summaryValueX, y, { width: summaryValueW, align: 'right', lineBreak: false });
+  y += 20;
+
+
+  doc.fillColor('#444444').font('Helvetica');
+  y += 5;
+
+  // ===== SECTION 6: PAYMENT / FOOTER =====
+
+  // ===== SECTION 6: PAYMENT / FOOTER =====
+  y = checkPageBreak(doc, y, 50);
+
+  // Horizontal rule
+  doc.strokeColor('#cccccc').lineWidth(1).moveTo(MARGIN, y).lineTo(RIGHT_EDGE, y).stroke();
+  y += 12;
+
+  // Status-specific message
+  doc.fontSize(10).fillColor('#444444');
+
+  if (billing.status === 'paid' && billing.paymentDate) {
+    doc.fillColor('green').text(`Paid on: ${formatDate(billing.paymentDate)}`, MARGIN, y, { lineBreak: false });
+  } else if (billing.status === 'returned') {
+    doc.fillColor('#6b7280').text('Returned - Locked for editing', MARGIN, y, { lineBreak: false });
+  } else {
+    doc.fillColor('#ea580c').text(`Payment due by: ${formatDate(billing.dueDate)}`, MARGIN, y, { lineBreak: false });
+  }
+
+  y += 15;
+
+  // Footer note
+  doc.fontSize(8).font('Helvetica').fillColor('#999999').text(
+    'Thank you for your business! For queries contact +91-9821509815',
+    MARGIN, y,
+    { align: 'center', width: RIGHT_EDGE - MARGIN }
+  );
+
+  doc.end();
+};
+

@@ -52,13 +52,13 @@ describe('billingController', () => {
         res = {
             status: statusMock,
             json: jsonMock,
-        };
+        } as any;
         jest.clearAllMocks();
     });
 
     describe('returnAndBill', () => {
         test('should return 404 if rental not found', async () => {
-            (Rental.findByPk as jest.Mock).mockResolvedValue(null);
+            (Rental.findByPk as jest.MockedFunction<typeof Rental.findByPk>).mockResolvedValue(null);
 
             await returnAndBill(req as Request, res as Response);
 
@@ -96,10 +96,10 @@ describe('billingController', () => {
                 update: jest.fn(),
             };
 
-            (Rental.findByPk as jest.Mock).mockResolvedValue(mockRental);
-            (Billing.create as jest.Mock).mockResolvedValue(mockBilling);
-            (calculateMonthsRented as jest.Mock).mockReturnValue(1);
-            (RentalItem.findAll as jest.Mock).mockResolvedValue([mockRentalItem]);
+            (Rental.findByPk as jest.MockedFunction<typeof Rental.findByPk>).mockResolvedValue(mockRental as any);
+            (Billing.create as jest.MockedFunction<typeof Billing.create>).mockResolvedValue(mockBilling as any);
+            (calculateMonthsRented as jest.MockedFunction<typeof calculateMonthsRented>).mockReturnValue(1);
+            (RentalItem.findAll as jest.MockedFunction<typeof RentalItem.findAll>).mockResolvedValue([mockRentalItem] as any);
 
             await returnAndBill(req as Request, res as Response);
 

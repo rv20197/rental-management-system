@@ -54,7 +54,7 @@ export default function ForgotPasswordPage() {
 
           {/* Success Message */}
           {isSuccess && (
-            <Alert variant="default" className="mb-4 bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-900/30 dark:text-green-400">
+            <Alert variant="success" className="mb-4 bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-900/30 dark:text-green-400">
               <p className="text-sm font-medium">Password reset link sent to your email.</p>
             </Alert>
           )}

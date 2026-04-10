@@ -17,6 +17,11 @@ interface BillingAttributes {
   totalDamages?: number;
   depositUsed?: number;
   availableDeposit?: number;
+  labourCost?: number;
+  transportCost?: number;
+  returnLabourCost?: number;
+  returnTransportCost?: number;
+  damagesCost?: number;
   Rental?: any;
   Customer?: any;
   BillingItems?: any[];
@@ -26,7 +31,7 @@ interface BillingAttributes {
 /**
  * Attributes used to generate a Bill
  */
-interface BillingCreationAttributes extends Optional<BillingAttributes, 'id' | 'status' | 'paymentDate' | 'returnedQuantity' | 'returnedUnitIds' | 'Rental' | 'Customer' | 'BillingItems' | 'customerId' | 'totalDamages' | 'depositUsed' | 'availableDeposit' | 'BillingDamages'> {}
+interface BillingCreationAttributes extends Optional<BillingAttributes, 'id' | 'status' | 'paymentDate' | 'returnedQuantity' | 'returnedUnitIds' | 'Rental' | 'Customer' | 'BillingItems' | 'customerId' | 'totalDamages' | 'depositUsed' | 'availableDeposit' | 'BillingDamages' | 'labourCost' | 'transportCost'> {}
 
 /**
  * Billing Model
@@ -83,6 +88,31 @@ const Billing = sequelize.define<BillingInstance>('Billing', {
     defaultValue: 0,
   },
   availableDeposit: {
+    type: DataTypes.DECIMAL,
+    allowNull: true,
+    defaultValue: 0,
+  },
+  labourCost: {
+    type: DataTypes.DECIMAL,
+    allowNull: true,
+    defaultValue: 0,
+  },
+  transportCost: {
+    type: DataTypes.DECIMAL,
+    allowNull: true,
+    defaultValue: 0,
+  },
+  returnLabourCost: {
+    type: DataTypes.DECIMAL,
+    allowNull: true,
+    defaultValue: 0,
+  },
+  returnTransportCost: {
+    type: DataTypes.DECIMAL,
+    allowNull: true,
+    defaultValue: 0,
+  },
+  damagesCost: {
     type: DataTypes.DECIMAL,
     allowNull: true,
     defaultValue: 0,

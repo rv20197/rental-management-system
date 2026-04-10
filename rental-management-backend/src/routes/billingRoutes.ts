@@ -1,5 +1,5 @@
 import express from 'express';
-import { getAllBillings, createBilling, getBillingById, payBilling, deleteBilling, returnAndBill, downloadBillPDF } from '../controllers/billingController';
+import { getAllBillings, createBilling, getBillingById, payBilling, returnAndBill, downloadBillPDF } from '../controllers/billingController';
 import { authenticate, authorize } from '../middleware/authMiddleware';
 
 const router = express.Router();
@@ -50,6 +50,12 @@ router.get('/', authenticate, getAllBillings);
  *               status:
  *                 type: string
  *                 enum: [pending, paid, overdue]
+ *               labourCost:
+ *                 type: number
+ *                 description: Additional labour cost for the billing
+ *               transportCost:
+ *                 type: number
+ *                 description: Additional transport cost for the billing
  *     responses:
  *       201:
  *         description: Billing created
@@ -116,6 +122,12 @@ router.put('/:id/pay', authenticate, payBilling);
  *               returnedQuantity:
  *                 type: integer
  *                 description: Explicit quantity being returned now
+ *               labourCost:
+ *                 type: number
+ *                 description: Additional labour cost for the return
+ *               transportCost:
+ *                 type: number
+ *                 description: Additional transport cost for the return
  *     responses:
  *       201:
  *         description: Items returned and Bill generated
@@ -146,25 +158,5 @@ router.post('/return', authenticate, returnAndBill);
  *               format: binary
  */
 router.get('/:id/download', authenticate, downloadBillPDF);
-
-/**
- * @swagger
- * /billings/{id}:
- *   delete:
- *     summary: Delete a billing record
- *     tags: [Billings]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Billing record deleted successfully
- */
-router.delete('/:id', authenticate, authorize('admin'), deleteBilling);
 
 export default router;
